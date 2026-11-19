@@ -11,7 +11,10 @@ Game puzzle balok 10 × 10 offline berbasis Vite + Vanilla JS + Phaser 3 + PWA (
 - **100% Offline & Mandiri**: Seluruh aset (font Plus Jakarta Sans, audio sintesis Web Audio API, ikon SVG/PNG) tersimpan lokal tanpa dependensi CDN eksternal.
 - **PWA (Progressive Web App)**: Service Worker otomatis melakukan precache seluruh aset aplikasi. Siap dipasang di Android, iOS (Safari), dan Desktop.
 - **Tiga Mode Permainan**: Classic Mode, Time Challenge (120 detik), dan Daily Challenge (puzzle harian sinkron dengan PRNG deterministik).
-- **Audio Sintetis & Haptik**: Web Audio API sintesis prosedural (tanpa file audio eksternal) dan Web Vibration API dengan preferensi motion control (`prefers-reduced-motion`).
+- **Sistem Audio Hangat & Teroptimasi**: 
+  - *Musik Latar (BGM)*: BGM generatif berbasis osilator dengung telah dihapus sepenuhnya demi performa CPU mobile dan kenyamanan pendengaran. Diganti dengan arsitektur HTML5 `Audio` mandiri (`/assets/audio/bgm.mp3`) dengan loop otomatis, default nonaktif (0% volume awal / mute) pada fresh play, serta fallback hening tanpa crash bila file belum tersedia. BGM otomatis dijeda saat tab beralih background atau modal pause aktif.
+  - *Efek Suara (SFX)*: Menggunakan Web Audio API sintetis dengan envelope ADSR hangat, dilengkapi **Master Low-Pass Filter (cutoff 2200 Hz)** untuk meredam frekuensi tinggi yang menusuk di speaker HP.
+  - *Haptik*: Web Vibration API dengan 4 profil respon getar taktil (Renyah, Tegas, Dinamis combo, Nonaktif) dan preferensi motion control (`prefers-reduced-motion`).
 - **Penyimpanan Lokal Ganda**: LocalStorage untuk pengaturan dan best score sinkron; IndexedDB untuk riwayat komprehensif pertandingan dan analitik statistik.
 
 ---

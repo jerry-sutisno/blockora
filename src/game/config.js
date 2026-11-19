@@ -10,11 +10,19 @@ export const gameConfig = {
   type: Phaser.AUTO,
   parent: 'blockora-board',
   backgroundColor: '#e5eeff',
+  pixelArt: false,
+  antialias: false,
+  roundPixels: true,
+  resolution: Math.min(typeof window !== 'undefined' ? (window.devicePixelRatio || 1) : 1, 1.5),
   scale: {
     mode: Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH,
     width: 444,
     height: 444
+  },
+  render: {
+    powerPreference: 'high-performance',
+    batchSize: 512
   },
   scene: [BootScene, GameScene]
 };

@@ -202,15 +202,15 @@ export class GameplayUI {
 
     this.container.innerHTML = `
       <div class="bg-surface text-on-surface font-body-md text-body-md min-h-screen relative selection:bg-primary-fixed selection:text-on-primary-fixed overflow-x-hidden">
-        <!-- Ambient Blur Glows -->
-        <div class="fixed inset-0 pointer-events-none -z-10 overflow-hidden">
+        <!-- Ambient Blur Glows (Hanya aktif di desktop untuk menghemat GPU/baterai HP) -->
+        <div class="fixed inset-0 pointer-events-none -z-10 overflow-hidden hidden lg:block">
           <div class="absolute -top-12 -left-12 w-64 h-64 rounded-xl bg-surface-container-high/40 blur-2xl transform -rotate-12"></div>
           <div class="absolute top-1/3 -right-20 w-80 h-80 rounded-xl bg-surface-variant/30 blur-3xl transform rotate-45"></div>
           <div class="absolute -bottom-16 left-1/4 w-72 h-72 rounded-xl bg-surface-container-low/60 blur-2xl transform rotate-6"></div>
         </div>
 
         <!-- Sticky Header Navigasi -->
-        <header class="fixed top-0 w-full z-50 bg-surface/85 backdrop-blur-xl shadow-[0_1px_8px_rgba(0,0,0,0.04)]">
+        <header class="fixed top-0 w-full z-50 bg-surface lg:bg-surface/85 lg:backdrop-blur-xl shadow-[0_1px_8px_rgba(0,0,0,0.04)]">
           <div class="h-16 max-w-7xl mx-auto px-margin flex items-center justify-between gap-gutter">
             <div class="flex items-center gap-space-md">
               <img alt="BLOCKORA Logo" class="h-8 w-auto object-contain" src="/assets/icons/icon-192.png"/>
@@ -283,8 +283,8 @@ export class GameplayUI {
               <!-- Main Game Desktop Layout (3-Column Architecture) -->
               <div class="grid grid-cols-1 lg:grid-cols-12 gap-space-lg items-start">
                 
-                <!-- LEFT SIDEBAR: Quest, Streak, Combo Gauge -->
-                <div class="lg:col-span-3 flex flex-col gap-space-md order-2 lg:order-1">
+                <!-- LEFT SIDEBAR: Quest, Streak, Combo Gauge (Hidden di HP, aktif di desktop lg:) -->
+                <div class="hidden lg:flex lg:col-span-3 flex-col gap-space-md order-2 lg:order-1">
                   <!-- Objective Card -->
                   <div class="bg-surface-container-lowest rounded-lg p-space-md shadow-[0_4px_16px_rgba(15,23,42,0.04),0_2px_0_rgba(15,23,42,0.04)] relative overflow-hidden">
                     <div class="absolute -right-4 -top-4 w-20 h-20 bg-surface-variant/40 rounded-full blur-xl pointer-events-none"></div>
@@ -333,9 +333,9 @@ export class GameplayUI {
                 </div>
 
                 <!-- CENTER: 10x10 Puzzle Grid Canvas & Deck -->
-                <div class="lg:col-span-6 flex flex-col items-center order-1 lg:order-2">
+                <div class="w-full lg:col-span-6 flex flex-col items-center order-1 lg:order-2">
                   <!-- Puzzle Grid Surround Frame -->
-                  <div class="w-full max-w-[500px] bg-surface-container-lowest p-space-md sm:p-space-lg rounded-xl shadow-[0_16px_36px_rgba(15,23,42,0.06),0_2px_0_rgba(15,23,42,0.06)] relative">
+                  <div class="w-full max-w-[500px] bg-surface-container-lowest p-space-md sm:p-space-lg rounded-xl shadow-sm lg:shadow-[0_16px_36px_rgba(15,23,42,0.06),0_2px_0_rgba(15,23,42,0.06)] relative">
                     <!-- Board Surface Recessed Well -->
                     <div class="bg-surface-container p-space-xs rounded-lg shadow-[inset_0_2px_5px_rgba(15,23,42,0.08),inset_0_0_0_1px_rgba(15,23,42,0.04)]">
                       <!-- 10x10 Tile Grid Wadah Kanvas Phaser -->
@@ -355,7 +355,7 @@ export class GameplayUI {
                   </div>
 
                   <!-- Draggable Block Tray / Dock Section -->
-                  <div class="w-full max-w-[500px] mt-space-md bg-surface-container-lowest p-space-md rounded-xl shadow-[0_8px_24px_rgba(15,23,42,0.05),0_2px_0_rgba(15,23,42,0.06)]">
+                  <div class="w-full max-w-[500px] mt-space-md bg-surface-container-lowest p-space-md rounded-xl shadow-sm lg:shadow-[0_8px_24px_rgba(15,23,42,0.05),0_2px_0_rgba(15,23,42,0.06)]">
                     <div class="flex items-center justify-between mb-space-sm">
                       <span class="font-label-sm text-label-sm uppercase tracking-wider text-on-surface-variant">Active Shape Deck</span>
                       <!-- Quick Assist Boosters -->
@@ -388,8 +388,8 @@ export class GameplayUI {
                   </div>
                 </div>
 
-                <!-- RIGHT SIDEBAR: Live Leaderboard, Tips, Zen Audio -->
-                <div class="lg:col-span-3 flex flex-col gap-space-md order-3">
+                <!-- RIGHT SIDEBAR: Live Leaderboard, Tips, Zen Audio (Hidden di HP, aktif di desktop lg:) -->
+                <div class="hidden lg:flex lg:col-span-3 flex-col gap-space-md order-3">
                   <!-- High Score Benchmark Card -->
                   <div class="bg-surface-container-lowest rounded-lg p-space-md shadow-[0_4px_16px_rgba(15,23,42,0.04),0_2px_0_rgba(15,23,42,0.04)]">
                     <div class="flex items-center justify-between mb-space-sm">
@@ -711,20 +711,30 @@ export class GameplayUI {
     e.preventDefault();
     this.activeDragSlot = slotIdx;
 
-    // Create floating ghost element
+    // Cache posisi & dimensi papan sekali saja saat mulai drag (mencegah layout thrashing)
+    const boardMount = this.container?.querySelector('#blockora-board');
+    if (boardMount) {
+      this.cachedBoardRect = boardMount.getBoundingClientRect();
+      this.cachedCellStep = this.cachedBoardRect.width / 10;
+    }
+
+    // Buat floating ghost element yang dianimasikan murni via CSS transform GPU
     const colorClass = getColorBgClass(block.color?.id);
     const coords = block.coords || block.shape || [[0, 0]];
     const preview = renderShapePreview(coords, colorClass);
 
+    const isTouch = e.pointerType === 'touch';
+    const offsetY = isTouch ? 48 : 24;
+
     const ghost = document.createElement('div');
     ghost.id = 'blockora-floating-drag';
     ghost.style.position = 'fixed';
-    ghost.style.left = `${e.clientX - 24}px`;
-    ghost.style.top = `${e.clientY - 24}px`;
+    ghost.style.left = '0px';
+    ghost.style.top = '0px';
+    ghost.style.transform = `translate3d(${e.clientX - 24}px, ${e.clientY - offsetY}px, 0) scale(1.15)`;
     ghost.style.pointerEvents = 'none';
     ghost.style.zIndex = '9999';
-    ghost.style.transform = 'scale(1.15)';
-    ghost.style.transition = 'transform 0.08s ease-out';
+    ghost.style.willChange = 'transform';
     ghost.innerHTML = preview;
 
     document.body.appendChild(ghost);
@@ -735,55 +745,63 @@ export class GameplayUI {
     this.onMoveHandler = (moveEvent) => this.handleDragMove(moveEvent, block);
     this.onUpHandler = (upEvent) => this.handleDragUp(upEvent, slotIdx, block);
 
-    window.addEventListener('pointermove', this.onMoveHandler);
+    window.addEventListener('pointermove', this.onMoveHandler, { passive: true });
     window.addEventListener('pointerup', this.onUpHandler);
     window.addEventListener('pointercancel', this.onUpHandler);
   }
 
   handleDragMove(e, block) {
     if (!this.dragGhostEl) return;
+    const clientX = e.clientX;
+    const clientY = e.clientY;
     const isTouch = e.pointerType === 'touch';
     const offsetY = isTouch ? 48 : 24;
 
-    this.dragGhostEl.style.left = `${e.clientX - 24}px`;
-    this.dragGhostEl.style.top = `${e.clientY - offsetY}px`;
+    // Throttle rendering pointer ke frame browser via requestAnimationFrame
+    if (this.dragRafId) return;
 
-    // Cek apakah kursor berada di atas papan Phaser
-    const boardMount = this.container?.querySelector('#blockora-board');
-    if (boardMount && this.gameScene) {
-      const rect = boardMount.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const y = e.clientY - offsetY - rect.top;
+    this.dragRafId = requestAnimationFrame(() => {
+      this.dragRafId = null;
+      if (!this.dragGhostEl) return;
 
-      if (x >= 0 && x <= rect.width && y >= 0 && y <= rect.height) {
-        const coords = block.coords || [[0, 0]];
-        const maxR = Math.max(...coords.map(([r]) => r));
-        const minR = Math.min(...coords.map(([r]) => r));
-        const maxC = Math.max(...coords.map(([, c]) => c));
-        const minC = Math.min(...coords.map(([, c]) => c));
-        const spanCols = maxC - minC + 1;
-        const spanRows = maxR - minR + 1;
+      // Update posisi menggunakan translate3d GPU
+      this.dragGhostEl.style.transform = `translate3d(${clientX - 24}px, ${clientY - offsetY}px, 0) scale(1.15)`;
 
-        const cellStep = rect.width / 10;
-        const cursorCol = Math.floor(x / cellStep);
-        const cursorRow = Math.floor(y / cellStep);
-        const col = cursorCol - Math.floor(spanCols / 2);
-        const row = cursorRow - Math.floor(spanRows / 2);
+      // Cek apakah kursor berada di atas papan Phaser menggunakan koordinat yang di-cache
+      const rect = this.cachedBoardRect;
+      if (rect && this.gameScene) {
+        const x = clientX - rect.left;
+        const y = clientY - offsetY - rect.top;
 
-        this.gameScene.setHoverPreview(block, row, col);
-      } else {
-        this.gameScene.clearHoverPreview();
+        if (x >= 0 && x <= rect.width && y >= 0 && y <= rect.height) {
+          const coords = block.coords || [[0, 0]];
+          const maxR = Math.max(...coords.map(([r]) => r));
+          const minR = Math.min(...coords.map(([r]) => r));
+          const maxC = Math.max(...coords.map(([, c]) => c));
+          const minC = Math.min(...coords.map(([, c]) => c));
+          const spanCols = maxC - minC + 1;
+          const spanRows = maxR - minR + 1;
+
+          const cellStep = this.cachedCellStep || (rect.width / 10);
+          const cursorCol = Math.floor(x / cellStep);
+          const cursorRow = Math.floor(y / cellStep);
+          const col = cursorCol - Math.floor(spanCols / 2);
+          const row = cursorRow - Math.floor(spanRows / 2);
+
+          this.gameScene.setHoverPreview(block, row, col);
+        } else {
+          this.gameScene.clearHoverPreview();
+        }
       }
-    }
+    });
   }
 
   handleDragUp(e, slotIdx, block) {
     this.cleanDragListeners();
 
     let placed = false;
-    const boardMount = this.container?.querySelector('#blockora-board');
-    if (boardMount && this.gameScene) {
-      const rect = boardMount.getBoundingClientRect();
+    const rect = this.cachedBoardRect;
+    if (rect && this.gameScene) {
       const isTouch = e.pointerType === 'touch';
       const offsetY = isTouch ? 48 : 24;
 
@@ -799,7 +817,7 @@ export class GameplayUI {
         const spanCols = maxC - minC + 1;
         const spanRows = maxR - minR + 1;
 
-        const cellStep = rect.width / 10;
+        const cellStep = this.cachedCellStep || (rect.width / 10);
         const cursorCol = Math.floor(x / cellStep);
         const cursorRow = Math.floor(y / cellStep);
         const col = cursorCol - Math.floor(spanCols / 2);
@@ -822,9 +840,14 @@ export class GameplayUI {
       this.dragGhostEl.remove();
       this.dragGhostEl = null;
     }
+    this.cachedBoardRect = null;
   }
 
   cleanDragListeners() {
+    if (this.dragRafId) {
+      cancelAnimationFrame(this.dragRafId);
+      this.dragRafId = null;
+    }
     if (this.onMoveHandler) {
       window.removeEventListener('pointermove', this.onMoveHandler);
       this.onMoveHandler = null;
@@ -841,45 +864,61 @@ export class GameplayUI {
     if (this.gameScene) {
       this.gameScene.clearHoverPreview();
     }
+    this.cachedBoardRect = null;
   }
 
-  // Update dinamis dari GameScene
+  // Update dinamis dari GameScene (Selective DOM Writes)
   updateLiveState({ score, combo, emptyCells, timerStr }) {
-    this.currentScore = score ?? this.currentScore;
-    this.currentCombo = combo ?? this.currentCombo;
-    this.emptyCellsCount = emptyCells ?? this.emptyCellsCount;
+    const isDesktop = typeof window !== 'undefined' && window.innerWidth >= 1024;
 
-    const scoreEl = this.container?.querySelector('#main-score');
-    if (scoreEl) scoreEl.textContent = this.currentScore.toLocaleString('id-ID');
+    if (score !== undefined && score !== this._lastScore) {
+      this.currentScore = score;
+      this._lastScore = score;
+      const scoreEl = this.container?.querySelector('#main-score');
+      if (scoreEl) scoreEl.textContent = this.currentScore.toLocaleString('id-ID');
 
-    const timerEl = this.container?.querySelector('#countdown-timer');
-    if (timerEl && timerStr) timerEl.textContent = timerStr;
-
-    const emptyEl = this.container?.querySelector('#empty-cells-count');
-    if (emptyEl) emptyEl.textContent = `${this.emptyCellsCount} Empty Cells Available`;
-
-    const comboBadge = this.container?.querySelector('#gameplay-combo-badge');
-    if (comboBadge) {
-      if (this.currentCombo >= 2) {
-        comboBadge.textContent = `x${this.currentCombo} COMBO!`;
-        comboBadge.classList.remove('opacity-0');
-        comboBadge.classList.add('animate-bounce');
-      } else {
-        comboBadge.classList.add('opacity-0');
-        comboBadge.classList.remove('animate-bounce');
+      if (isDesktop && !this.isMockMode) {
+        const rankListEl = this.container?.querySelector('#local-ranking-list');
+        if (rankListEl) rankListEl.innerHTML = this.buildLocalRankMarkup(false);
       }
     }
 
-    const streakLabel = this.container?.querySelector('#streak-multiplier-label');
-    if (streakLabel) streakLabel.textContent = `x${Math.max(1, this.currentCombo)}`;
+    if (timerStr && timerStr !== this._lastTimerStr) {
+      this._lastTimerStr = timerStr;
+      const timerEl = this.container?.querySelector('#countdown-timer');
+      if (timerEl) timerEl.textContent = timerStr;
+    }
 
-    const streakBoxesEl = this.container?.querySelector('#streak-multiplier-boxes');
-    if (streakBoxesEl) streakBoxesEl.innerHTML = this.buildStreakBoxes(this.currentCombo);
+    if (emptyCells !== undefined && emptyCells !== this._lastEmptyCells) {
+      this.emptyCellsCount = emptyCells;
+      this._lastEmptyCells = emptyCells;
+      const emptyEl = this.container?.querySelector('#empty-cells-count');
+      if (emptyEl) emptyEl.textContent = `${this.emptyCellsCount} Empty Cells Available`;
+    }
 
-    // Update Right Panel Ranking Live
-    const rankListEl = this.container?.querySelector('#local-ranking-list');
-    if (rankListEl && !this.isMockMode) {
-      rankListEl.innerHTML = this.buildLocalRankMarkup(false);
+    if (combo !== undefined && combo !== this._lastCombo) {
+      this.currentCombo = combo;
+      this._lastCombo = combo;
+
+      const comboBadge = this.container?.querySelector('#gameplay-combo-badge');
+      if (comboBadge) {
+        if (this.currentCombo >= 2) {
+          comboBadge.textContent = `x${this.currentCombo} COMBO!`;
+          comboBadge.classList.remove('opacity-0');
+          comboBadge.classList.add('animate-bounce');
+        } else {
+          comboBadge.classList.add('opacity-0');
+          comboBadge.classList.remove('animate-bounce');
+        }
+      }
+
+      if (isDesktop) {
+        const streakLabel = this.container?.querySelector('#streak-multiplier-label');
+        if (streakLabel) streakLabel.textContent = `x${Math.max(1, this.currentCombo)}`;
+
+        const streakBoxesEl = this.container?.querySelector('#streak-multiplier-boxes');
+        if (streakBoxesEl) streakBoxesEl.innerHTML = this.buildStreakBoxes(this.currentCombo);
+      }
     }
   }
 

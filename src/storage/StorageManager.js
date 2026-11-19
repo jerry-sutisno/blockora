@@ -90,16 +90,16 @@ export class StorageManager {
       return {
         sfxEnabled: localStorage.getItem('blockora.settings.sfx_enabled') !== 'false', // default true
         sfxVolume: Number(localStorage.getItem('blockora.settings.sfx_volume')) || 80,
-        bgmEnabled: localStorage.getItem('blockora.settings.bgm_enabled') !== 'false', // default true
-        bgmVolume: Number(localStorage.getItem('blockora.settings.bgm_volume')) || 60,
+        bgmEnabled: localStorage.getItem('blockora.settings.bgm_enabled') === 'true', // default false (mati)
+        bgmVolume: Number(localStorage.getItem('blockora.settings.bgm_volume')) || 30, // default 30%
         hapticEnabled: localStorage.getItem('blockora.settings.haptic_enabled') !== 'false' // default true
       };
     } catch (e) {
       return {
         sfxEnabled: true,
         sfxVolume: 80,
-        bgmEnabled: true,
-        bgmVolume: 60,
+        bgmEnabled: false,
+        bgmVolume: 30,
         hapticEnabled: true
       };
     }

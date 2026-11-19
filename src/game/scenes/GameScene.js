@@ -13,7 +13,7 @@ import { StatisticsManager } from '../../storage/StatisticsManager.js';
 import { audioManager } from '../../audio/AudioManager.js';
 import { HapticManager } from '../../utils/HapticManager.js';
 import { MotionPrefs } from '../../utils/MotionPrefs.js';
-import { BOARD_SIZE, TRAY_SLOTS, THEME_COLORS, GAME_MODES, ANIMATION_TIMINGS } from '../constants.js';
+import { BOARD_SIZE, TRAY_SLOTS, THEME_COLORS, BLOCK_COLORS, GAME_MODES, ANIMATION_TIMINGS } from '../constants.js';
 
 /**
  * GameScene - Layar Permainan Utama BLOCKORA (Tahap 4: Multi-Mode Permainan)
@@ -93,11 +93,13 @@ export default class GameScene extends Phaser.Scene {
     }
 
     // 3. Render Papan 10x10
+    this.createCellTextures();
     this.setupBoard(width, height);
 
     // 4. Inisialisasi Lapisan Grafik Preview Ghost
     this.previewGraphics = this.add.graphics();
     this.previewGraphics.setDepth(5);
+    this.previewSprites = [];
 
     // 5. Inisialisasi DragSystem (hanya untuk mode standalone/lebar > 500)
     if (width > 500) {
@@ -307,6 +309,51 @@ export default class GameScene extends Phaser.Scene {
   }
 
   /**
+   * Pre-generasi texture sel warna dan ghost preview ke TextureManager
+   */
+  createCellTextures() {
+    const size = 39;
+    const radius = 4;
+
+    BLOCK_COLORS.forEach(color => {
+      const texKey = `cell_color_${color.id}`;
+      if (this.textures.exists(texKey)) return;
+
+      const g = this.make.graphics({ x: 0, y: 0, add: false });
+      // Bayangan bawah
+      g.fillStyle(0x000000, 0.15);
+      g.fillRoundedRect(0, 2, size, size, radius);
+      // Badan sel
+      g.fillStyle(color.num, 1);
+      g.fillRoundedRect(0, 0, size, size, radius);
+      // Highlight atas
+      g.fillStyle(0xffffff, 0.3);
+      g.fillRoundedRect(1, 1, size - 2, 3, 2);
+
+      g.generateTexture(texKey, size, size + 2);
+      g.destroy();
+    });
+
+    if (!this.textures.exists('preview_valid')) {
+      const gValid = this.make.graphics({ x: 0, y: 0, add: false });
+      gValid.fillStyle(0x2563eb, 0.55);
+      gValid.fillRoundedRect(0, 0, size, size, radius);
+      gValid.lineStyle(1.5, 0xffffff, 0.85);
+      gValid.strokeRoundedRect(0, 0, size, size, radius);
+      gValid.generateTexture('preview_valid', size, size);
+      gValid.destroy();
+    }
+
+    if (!this.textures.exists('preview_invalid')) {
+      const gInvalid = this.make.graphics({ x: 0, y: 0, add: false });
+      gInvalid.fillStyle(0xdc2c4f, 0.35);
+      gInvalid.fillRoundedRect(0, 0, size, size, radius);
+      gInvalid.generateTexture('preview_invalid', size, size);
+      gInvalid.destroy();
+    }
+  }
+
+  /**
    * Mengatur dan merender Papan 10x10 sesuai desain Stitch
    */
   setupBoard(width, height) {
@@ -321,18 +368,22 @@ export default class GameScene extends Phaser.Scene {
       this.boardCellViews = [];
       const step = this.cellSize + this.cellGap;
 
+      // Optimasi: Seluruh 100 sel kosong digambar dalam SATU Graphics object (1 draw call)
+      if (this.emptyGridGraphics) {
+        this.emptyGridGraphics.destroy();
+      }
+      this.emptyGridGraphics = this.add.graphics();
+      this.emptyGridGraphics.fillStyle(THEME_COLORS.cellEmpty, 1);
+      this.emptyGridGraphics.lineStyle(1, THEME_COLORS.cellEmptyStroke, 0.7);
+
       for (let r = 0; r < BOARD_SIZE; r++) {
         this.boardCellViews[r] = [];
         for (let c = 0; c < BOARD_SIZE; c++) {
           const cellX = this.boardOriginX + (c * step);
           const cellY = this.boardOriginY + (r * step);
 
-          // Gambar sel kosong
-          const emptyGraphics = this.add.graphics();
-          emptyGraphics.fillStyle(THEME_COLORS.cellEmpty, 1);
-          emptyGraphics.fillRoundedRect(cellX, cellY, this.cellSize, this.cellSize, this.cellRadius);
-          emptyGraphics.lineStyle(1, THEME_COLORS.cellEmptyStroke, 0.7);
-          emptyGraphics.strokeRoundedRect(cellX, cellY, this.cellSize, this.cellSize, this.cellRadius);
+          this.emptyGridGraphics.fillRoundedRect(cellX, cellY, this.cellSize, this.cellSize, this.cellRadius);
+          this.emptyGridGraphics.strokeRoundedRect(cellX, cellY, this.cellSize, this.cellSize, this.cellRadius);
 
           this.boardCellViews[r][c] = {
             x: cellX,
@@ -699,7 +750,10 @@ export default class GameScene extends Phaser.Scene {
     audioManager.playPlace();
     HapticManager.place();
 
-    // 3. Render sel balok baru di papan
+    // 3. Render sel balok baru di papan menggunakan sprite texture hemat GPU
+    const colorId = block.color?.id || 1;
+    const texKey = this.textures.exists(`cell_color_${colorId}`) ? `cell_color_${colorId}` : null;
+
     block.coords.forEach(([r, c]) => {
       const targetRow = row + r;
       const targetCol = col + c;
@@ -709,31 +763,36 @@ export default class GameScene extends Phaser.Scene {
         cellView.filledGraphics.destroy();
       }
 
-      const filledGraphics = this.add.graphics();
-      this.drawBlockCell(
-        filledGraphics,
-        cellView.x,
-        cellView.y,
-        this.cellSize,
-        block.color.num,
-        this.cellRadius
-      );
-      filledGraphics.setDepth(2);
+      let filledVisual;
+      if (texKey && this.cellSize === 39) {
+        filledVisual = this.add.image(cellView.x, cellView.y, texKey).setOrigin(0, 0).setDepth(2);
+      } else {
+        filledVisual = this.add.graphics();
+        this.drawBlockCell(
+          filledVisual,
+          cellView.x,
+          cellView.y,
+          this.cellSize,
+          block.color.num,
+          this.cellRadius
+        );
+        filledVisual.setDepth(2);
+      }
 
       if (!MotionPrefs.isReduced) {
-        filledGraphics.setScale(0.85);
+        filledVisual.setScale(0.85);
         this.tweens.add({
-          targets: filledGraphics,
+          targets: filledVisual,
           scaleX: 1,
           scaleY: 1,
           duration: ANIMATION_TIMINGS.PLACE_BOUNCE_DURATION,
           ease: 'Back.easeOut'
         });
       } else {
-        filledGraphics.setScale(1);
+        filledVisual.setScale(1);
       }
 
-      cellView.filledGraphics = filledGraphics;
+      cellView.filledGraphics = filledVisual;
     });
 
     // 4. Deteksi baris & kolom yang terisi penuh dengan ClearSystem
@@ -831,12 +890,18 @@ export default class GameScene extends Phaser.Scene {
   }
 
   /**
-   * Partikel ringan berkecepatan tinggi saat garis terhapus (Object Pooling / Self-Destroying)
+   * Partikel ringan berkecepatan tinggi saat garis terhapus
    */
   spawnClearParticles(originX, originY, clearResult) {
+    const isMobileOrLow = typeof window !== 'undefined' && (
+      window.innerWidth < 1024 ||
+      (typeof navigator !== 'undefined' && (navigator.hardwareConcurrency || 4) <= 4)
+    );
+
+    const maxLimit = isMobileOrLow ? 10 : ANIMATION_TIMINGS.MAX_PARTICLES_PER_CLEAR;
     const particleCount = Math.min(
-      ANIMATION_TIMINGS.MAX_PARTICLES_PER_CLEAR,
-      clearResult.linesCleared * 8
+      maxLimit,
+      clearResult.linesCleared * (isMobileOrLow ? 5 : 8)
     );
     const colors = [0x2563eb, 0x60a5fa, 0x38bdf8, 0xffffff];
 
@@ -844,12 +909,12 @@ export default class GameScene extends Phaser.Scene {
       const color = colors[i % colors.length];
       const particle = this.add.graphics();
       particle.fillStyle(color, 1);
-      particle.fillCircle(0, 0, Phaser.Math.Between(3, 5));
+      particle.fillCircle(0, 0, Phaser.Math.Between(3, 4));
       particle.setPosition(originX, originY);
       particle.setDepth(15);
 
       const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
-      const speed = Phaser.Math.FloatBetween(40, 140);
+      const speed = Phaser.Math.FloatBetween(40, isMobileOrLow ? 90 : 130);
       const targetX = originX + Math.cos(angle) * speed;
       const targetY = originY + Math.sin(angle) * speed;
 
@@ -860,7 +925,7 @@ export default class GameScene extends Phaser.Scene {
         alpha: 0,
         scaleX: 0.2,
         scaleY: 0.2,
-        duration: Phaser.Math.Between(220, 320),
+        duration: isMobileOrLow ? 180 : Phaser.Math.Between(220, 300),
         ease: 'Cubic.easeOut',
         onComplete: () => particle.destroy()
       });
@@ -1163,12 +1228,15 @@ export default class GameScene extends Phaser.Scene {
 
     // 1. Reset Papan
     this.boardSystem.reset();
-    for (let r = 0; r < BOARD_SIZE; r++) {
-      for (let c = 0; c < BOARD_SIZE; c++) {
-        const cellView = this.boardCellViews[r][c];
-        if (cellView && cellView.filledGraphics) {
-          cellView.filledGraphics.destroy();
-          cellView.filledGraphics = null;
+    if (this.boardCellViews && this.boardCellViews.length === BOARD_SIZE) {
+      for (let r = 0; r < BOARD_SIZE; r++) {
+        if (!this.boardCellViews[r]) continue;
+        for (let c = 0; c < BOARD_SIZE; c++) {
+          const cellView = this.boardCellViews[r][c];
+          if (cellView && cellView.filledGraphics) {
+            cellView.filledGraphics.destroy();
+            cellView.filledGraphics = null;
+          }
         }
       }
     }
@@ -1264,45 +1332,65 @@ export default class GameScene extends Phaser.Scene {
   }
 
   /**
-   * Menampilkan preview ghost penempatan balok
+   * Menampilkan preview ghost penempatan balok (Hardware Texture Sprite Pooling)
    * @param {Object} block
    * @param {number} row
    * @param {number} col
    */
   setHoverPreview(block, row, col) {
-    if (!this.previewGraphics || this.isLocked || this.isPaused || this.isGameOver) return;
-    this.previewGraphics.clear();
+    if (!block || !block.coords || this.isLocked || this.isPaused || this.isGameOver) {
+      this.clearHoverPreview();
+      return;
+    }
 
-    if (!block || !block.coords) return;
+    // Hindari komputasi berulang jika kursor masih berada di sel yang sama
+    if (this._lastHoverRow === row && this._lastHoverCol === col && this._lastHoverBlock === block) {
+      return;
+    }
+    this._lastHoverRow = row;
+    this._lastHoverCol = col;
+    this._lastHoverBlock = block;
+
     const canPlace = this.boardSystem.canPlace(block.coords, row, col);
     const step = this.cellSize + this.cellGap;
+    const tex = canPlace ? 'preview_valid' : 'preview_invalid';
 
+    // Inisialisasi pool sprite jika belum ada
+    if (!this.previewSprites) this.previewSprites = [];
+    while (this.previewSprites.length < block.coords.length) {
+      const s = this.add.image(0, 0, tex).setOrigin(0, 0).setDepth(5);
+      this.previewSprites.push(s);
+    }
+
+    let spriteIdx = 0;
     block.coords.forEach(([r, c]) => {
       const targetRow = row + r;
       const targetCol = col + c;
 
       if (this.boardSystem.isValidCell(targetRow, targetCol)) {
-        const cellX = this.boardOriginX + (targetCol * step);
-        const cellY = this.boardOriginY + (targetRow * step);
-
-        if (canPlace) {
-          const colorNum = block.color?.num || 0x2563eb;
-          this.previewGraphics.fillStyle(colorNum, 0.55);
-          this.previewGraphics.fillRoundedRect(cellX, cellY, this.cellSize, this.cellSize, this.cellRadius);
-          this.previewGraphics.lineStyle(1.5, 0xffffff, 0.85);
-          this.previewGraphics.strokeRoundedRect(cellX, cellY, this.cellSize, this.cellSize, this.cellRadius);
-        } else {
-          this.previewGraphics.fillStyle(0xdc2c4f, 0.35);
-          this.previewGraphics.fillRoundedRect(cellX, cellY, this.cellSize, this.cellSize, this.cellRadius);
-        }
+        const sprite = this.previewSprites[spriteIdx++];
+        sprite.setTexture(tex);
+        sprite.setPosition(this.boardOriginX + (targetCol * step), this.boardOriginY + (targetRow * step));
+        sprite.setVisible(true);
       }
     });
+
+    for (let i = spriteIdx; i < this.previewSprites.length; i++) {
+      this.previewSprites[i].setVisible(false);
+    }
   }
 
   /**
    * Menghapus preview ghost penempatan balok
    */
   clearHoverPreview() {
+    this._lastHoverRow = null;
+    this._lastHoverCol = null;
+    this._lastHoverBlock = null;
+
+    if (this.previewSprites) {
+      this.previewSprites.forEach(s => s.setVisible(false));
+    }
     if (this.previewGraphics) {
       this.previewGraphics.clear();
     }

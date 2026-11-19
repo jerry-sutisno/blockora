@@ -1,6 +1,6 @@
 /**
- * AudioManager.js - Pengelola Audio Web Audio API Murni (Synthesized SFX + Generative Ambient BGM).
- * Menghasilkan efek suara taktil (kayu/kaca/chime) tanpa file audio eksternal dan tanpa library.
+ * AudioManager.js - Pengelola Audio Web Audio API Murni (Warm Synthesized SFX + Ambient BGM Player).
+ * Menghasilkan efek suara taktil (kayu/chime/resin) yang lembut dan hangat tanpa frekuensi menusuk.
  * Menghormati kebijakan autoplay browser, visibilitychange, dan pengaturan volume real-time.
  */
 
@@ -15,23 +15,31 @@ class AudioManager {
     // Node Master & Routing
     this.masterGain = null;
     this.sfxGain = null;
-    this.bgmGain = null;
+    this.sfxFilter = null;
     this.compressor = null;
 
     // State preferensi
     const settings = StorageManager.getSettings();
-    this.sfxEnabled = settings.sfxEnabled;
-    this.sfxVolume = settings.sfxVolume / 100; // 0.0 s/d 1.0
-    this.bgmEnabled = settings.bgmEnabled;
-    this.bgmVolume = settings.bgmVolume / 100;
+    this.sfxEnabled = settings.sfxEnabled ?? true;
+    this.sfxVolume = (settings.sfxVolume ?? 80) / 100; // 0.0 s/d 1.0
+    this.bgmEnabled = settings.bgmEnabled ?? false; // Default MATI
+    this.bgmVolume = (settings.bgmVolume ?? 30) / 100; // Default 30%
 
-    // Ambient BGM State
-    this.bgmOscillators = [];
+    // Ambient BGM State (Audio file / fallback)
+    this.bgmAudio = null;
     this.isBgmPlaying = false;
     this.isTabHidden = false;
 
     this._setupAutoUnlock();
     this._setupVisibilityListener();
+  }
+
+  get isBgmMuted() {
+    return !this.bgmEnabled || this.bgmVolume === 0;
+  }
+
+  get isSfxMuted() {
+    return !this.sfxEnabled || this.sfxVolume === 0;
   }
 
   /**
@@ -52,8 +60,12 @@ class AudioManager {
     window.addEventListener('touchstart', unlock, { once: true, passive: true });
   }
 
+  unlockAudio() {
+    this.initContext();
+  }
+
   /**
-   * Menangani event perpindahan tab (visibilitychange) agar suara berhenti saat tab diminimalkan
+   * Menangani event perpindahan tab (visibilitychange) agar audio berhenti total saat tab tidak aktif
    */
   _setupVisibilityListener() {
     if (typeof document === 'undefined') return;
@@ -64,10 +76,20 @@ class AudioManager {
         if (this.ctx && this.ctx.state === 'running') {
           this.ctx.suspend().catch(() => {});
         }
+        if (this.bgmAudio && this.isBgmPlaying) {
+          try {
+            this.bgmAudio.pause();
+          } catch (_) {}
+        }
       } else {
         this.isTabHidden = false;
         if (this.ctx && this.ctx.state === 'suspended' && this.isUnlocked) {
           this.ctx.resume().catch(() => {});
+        }
+        if (this.bgmAudio && this.bgmEnabled && this.isBgmPlaying) {
+          try {
+            this.bgmAudio.play().catch(() => {});
+          } catch (_) {}
         }
       }
     });
@@ -101,22 +123,23 @@ class AudioManager {
 
       // 2. Master Gain
       this.masterGain = this.ctx.createGain();
-      this.masterGain.gain.setValueAtTime(0.85, this.ctx.currentTime);
+      this.masterGain.gain.setValueAtTime(0.8, this.ctx.currentTime);
       this.masterGain.connect(this.compressor);
 
-      // 3. SFX Bus Gain
+      // 3. SFX Low-Pass Filter (2200 Hz) - Menghilangkan frekuensi tinggi yang menusuk
+      this.sfxFilter = this.ctx.createBiquadFilter();
+      this.sfxFilter.type = 'lowpass';
+      this.sfxFilter.frequency.setValueAtTime(2200, this.ctx.currentTime);
+      this.sfxFilter.Q.setValueAtTime(0.7, this.ctx.currentTime);
+      this.sfxFilter.connect(this.masterGain);
+
+      // 4. SFX Bus Gain
       this.sfxGain = this.ctx.createGain();
       this.sfxGain.gain.setValueAtTime(this.sfxEnabled ? this.sfxVolume : 0, this.ctx.currentTime);
-      this.sfxGain.connect(this.masterGain);
-
-      // 4. BGM Bus Gain
-      this.bgmGain = this.ctx.createGain();
-      this.bgmGain.gain.setValueAtTime(this.bgmEnabled ? this.bgmVolume * 0.35 : 0, this.ctx.currentTime);
-      this.bgmGain.connect(this.masterGain);
+      this.sfxGain.connect(this.sfxFilter);
 
       this.isUnlocked = true;
 
-      // Mulai ambient BGM jika aktif
       if (this.bgmEnabled) {
         this.startBGM();
       }
@@ -143,22 +166,34 @@ class AudioManager {
     }
   }
 
+  toggleSfxMute() {
+    this.setSfxEnabled(!this.sfxEnabled);
+    StorageManager.saveSetting('sfx_enabled', this.sfxEnabled);
+  }
+
   setBgmEnabled(enabled) {
     this.bgmEnabled = Boolean(enabled);
-    if (this.bgmGain && this.ctx) {
-      const target = this.bgmEnabled ? this.bgmVolume * 0.35 : 0;
-      this.bgmGain.gain.setTargetAtTime(target, this.ctx.currentTime, 0.1);
+    if (this.bgmAudio) {
       if (this.bgmEnabled && !this.isBgmPlaying) {
         this.startBGM();
+      } else if (!this.bgmEnabled && this.isBgmPlaying) {
+        this.stopBGM();
       }
+    } else if (this.bgmEnabled) {
+      this.startBGM();
     }
   }
 
   setBgmVolume(percent) {
     this.bgmVolume = Math.max(0, Math.min(100, Number(percent))) / 100;
-    if (this.bgmGain && this.ctx && this.bgmEnabled) {
-      this.bgmGain.gain.setTargetAtTime(this.bgmVolume * 0.35, this.ctx.currentTime, 0.05);
+    if (this.bgmAudio) {
+      this.bgmAudio.volume = Math.max(0, Math.min(1, this.bgmVolume * 0.3));
     }
+  }
+
+  toggleBgmMute() {
+    this.setBgmEnabled(!this.bgmEnabled);
+    StorageManager.saveSetting('bgm_enabled', this.bgmEnabled);
   }
 
   // =========================================================================
@@ -176,11 +211,11 @@ class AudioManager {
     const gain = this.ctx.createGain();
 
     osc.type = 'sine';
-    osc.frequency.setValueAtTime(280, t);
-    osc.frequency.exponentialRampToValueAtTime(360, t + 0.07);
+    osc.frequency.setValueAtTime(260, t);
+    osc.frequency.exponentialRampToValueAtTime(340, t + 0.07);
 
     gain.gain.setValueAtTime(0.001, t);
-    gain.gain.linearRampToValueAtTime(0.18, t + 0.015);
+    gain.gain.linearRampToValueAtTime(0.14, t + 0.012);
     gain.gain.exponentialRampToValueAtTime(0.001, t + 0.07);
 
     osc.connect(gain);
@@ -199,36 +234,36 @@ class AudioManager {
 
     const t = this.ctx.currentTime;
 
-    // Body resonator kayu (frekuensi rendah decay cepat)
+    // Resonator kayu hangat
     const osc = this.ctx.createOscillator();
     const gain = this.ctx.createGain();
 
     osc.type = 'triangle';
-    osc.frequency.setValueAtTime(160, t);
-    osc.frequency.exponentialRampToValueAtTime(95, t + 0.08);
+    osc.frequency.setValueAtTime(150, t);
+    osc.frequency.exponentialRampToValueAtTime(90, t + 0.07);
 
-    gain.gain.setValueAtTime(0.28, t);
-    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.08);
+    gain.gain.setValueAtTime(0.22, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.07);
 
     osc.connect(gain);
     gain.connect(this.sfxGain);
 
-    // Click attack taktil (kaca/resin tipis)
+    // Click lembut taktil
     const clickOsc = this.ctx.createOscillator();
     const clickGain = this.ctx.createGain();
 
     clickOsc.type = 'sine';
-    clickOsc.frequency.setValueAtTime(750, t);
-    clickOsc.frequency.exponentialRampToValueAtTime(320, t + 0.02);
+    clickOsc.frequency.setValueAtTime(600, t);
+    clickOsc.frequency.exponentialRampToValueAtTime(280, t + 0.02);
 
-    clickGain.gain.setValueAtTime(0.12, t);
+    clickGain.gain.setValueAtTime(0.08, t);
     clickGain.gain.exponentialRampToValueAtTime(0.001, t + 0.02);
 
     clickOsc.connect(clickGain);
     clickGain.connect(this.sfxGain);
 
     osc.start(t);
-    osc.stop(t + 0.08);
+    osc.stop(t + 0.07);
     clickOsc.start(t);
     clickOsc.stop(t + 0.02);
 
@@ -237,7 +272,7 @@ class AudioManager {
   }
 
   /**
-   * SFX: Penempatan balok tidak valid / drop batal (nada rendah tumpul)
+   * SFX: Penempatan balok tidak valid / drop batal
    */
   playInvalid() {
     if (!this._canPlaySFX()) return;
@@ -247,30 +282,29 @@ class AudioManager {
     const gain = this.ctx.createGain();
 
     osc.type = 'sine';
-    osc.frequency.setValueAtTime(140, t);
-    osc.frequency.exponentialRampToValueAtTime(105, t + 0.1);
+    osc.frequency.setValueAtTime(130, t);
+    osc.frequency.exponentialRampToValueAtTime(100, t + 0.09);
 
-    gain.gain.setValueAtTime(0.15, t);
-    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.1);
+    gain.gain.setValueAtTime(0.12, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.09);
 
     osc.connect(gain);
     gain.connect(this.sfxGain);
 
     osc.start(t);
-    osc.stop(t + 0.1);
+    osc.stop(t + 0.09);
     osc.onended = () => { osc.disconnect(); gain.disconnect(); };
   }
 
   /**
    * SFX: Penghapusan baris/kolom penuh (nada naik arpeggio bertingkat)
-   * @param {number} linesCleared Jumlah baris yang terhapus
    */
   playClear(linesCleared = 1) {
     if (!this._canPlaySFX()) return;
 
     const t = this.ctx.currentTime;
     const freqs = getClearPitchSequence(linesCleared);
-    const stepDuration = 0.06;
+    const stepDuration = 0.055;
 
     freqs.forEach((freq, i) => {
       const noteTime = t + (i * stepDuration);
@@ -281,21 +315,20 @@ class AudioManager {
       osc.frequency.setValueAtTime(freq, noteTime);
 
       gain.gain.setValueAtTime(0.001, noteTime);
-      gain.gain.linearRampToValueAtTime(0.22, noteTime + 0.015);
-      gain.gain.exponentialRampToValueAtTime(0.001, noteTime + 0.22);
+      gain.gain.linearRampToValueAtTime(0.16, noteTime + 0.012);
+      gain.gain.exponentialRampToValueAtTime(0.001, noteTime + 0.18);
 
       osc.connect(gain);
       gain.connect(this.sfxGain);
 
       osc.start(noteTime);
-      osc.stop(noteTime + 0.22);
+      osc.stop(noteTime + 0.18);
       osc.onended = () => { osc.disconnect(); gain.disconnect(); };
     });
   }
 
   /**
    * SFX: Combo berturut-turut (chime kristal naik nada mengikuti level)
-   * @param {number} comboLevel 
    */
   playCombo(comboLevel = 2) {
     if (!this._canPlaySFX()) return;
@@ -303,7 +336,6 @@ class AudioManager {
     const t = this.ctx.currentTime;
     const baseFreq = getComboPitch(comboLevel);
 
-    // Nada fundamental + overtone oktaf untuk timbre chime
     [baseFreq, baseFreq * 2].forEach((freq, idx) => {
       const osc = this.ctx.createOscillator();
       const gain = this.ctx.createGain();
@@ -311,15 +343,15 @@ class AudioManager {
       osc.type = 'sine';
       osc.frequency.setValueAtTime(freq, t);
 
-      const amp = idx === 0 ? 0.2 : 0.08;
+      const amp = idx === 0 ? 0.15 : 0.06;
       gain.gain.setValueAtTime(amp, t);
-      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.28);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.22);
 
       osc.connect(gain);
       gain.connect(this.sfxGain);
 
       osc.start(t);
-      osc.stop(t + 0.28);
+      osc.stop(t + 0.22);
       osc.onended = () => { osc.disconnect(); gain.disconnect(); };
     });
   }
@@ -332,7 +364,7 @@ class AudioManager {
 
     const t = this.ctx.currentTime;
     const notes = [329.63, 293.66, 261.63, 220.00]; // E4, D4, C4, A3
-    const step = 0.09;
+    const step = 0.08;
 
     notes.forEach((freq, i) => {
       const noteTime = t + (i * step);
@@ -342,14 +374,14 @@ class AudioManager {
       osc.type = 'sine';
       osc.frequency.setValueAtTime(freq, noteTime);
 
-      gain.gain.setValueAtTime(0.18, noteTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, noteTime + 0.24);
+      gain.gain.setValueAtTime(0.14, noteTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, noteTime + 0.2);
 
       osc.connect(gain);
       gain.connect(this.sfxGain);
 
       osc.start(noteTime);
-      osc.stop(noteTime + 0.24);
+      osc.stop(noteTime + 0.2);
       osc.onended = () => { osc.disconnect(); gain.disconnect(); };
     });
   }
@@ -362,7 +394,7 @@ class AudioManager {
 
     const t = this.ctx.currentTime;
     const notes = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6
-    const step = 0.08;
+    const step = 0.07;
 
     notes.forEach((freq, i) => {
       const noteTime = t + (i * step);
@@ -372,14 +404,14 @@ class AudioManager {
       osc.type = 'sine';
       osc.frequency.setValueAtTime(freq, noteTime);
 
-      gain.gain.setValueAtTime(0.2, noteTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, noteTime + 0.25);
+      gain.gain.setValueAtTime(0.16, noteTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, noteTime + 0.2);
 
       osc.connect(gain);
       gain.connect(this.sfxGain);
 
       osc.start(noteTime);
-      osc.stop(noteTime + 0.25);
+      osc.stop(noteTime + 0.2);
       osc.onended = () => { osc.disconnect(); gain.disconnect(); };
     });
   }
@@ -395,17 +427,17 @@ class AudioManager {
     const gain = this.ctx.createGain();
 
     osc.type = 'sine';
-    osc.frequency.setValueAtTime(540, t);
-    osc.frequency.exponentialRampToValueAtTime(260, t + 0.03);
+    osc.frequency.setValueAtTime(480, t);
+    osc.frequency.exponentialRampToValueAtTime(240, t + 0.025);
 
-    gain.gain.setValueAtTime(0.14, t);
-    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.03);
+    gain.gain.setValueAtTime(0.11, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.025);
 
     osc.connect(gain);
     gain.connect(this.sfxGain);
 
     osc.start(t);
-    osc.stop(t + 0.03);
+    osc.stop(t + 0.025);
     osc.onended = () => { osc.disconnect(); gain.disconnect(); };
   }
 
@@ -423,86 +455,98 @@ class AudioManager {
     const osc = this.ctx.createOscillator();
     const gain = this.ctx.createGain();
 
-    osc.type = 'triangle';
-    osc.frequency.setValueAtTime(950, t);
-    osc.frequency.exponentialRampToValueAtTime(450, t + 0.025);
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(800, t);
+    osc.frequency.exponentialRampToValueAtTime(400, t + 0.02);
 
-    gain.gain.setValueAtTime(0.15, t);
-    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.025);
+    gain.gain.setValueAtTime(0.1, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.02);
 
     osc.connect(gain);
     gain.connect(this.sfxGain);
 
     osc.start(t);
-    osc.stop(t + 0.025);
+    osc.stop(t + 0.02);
     osc.onended = () => { osc.disconnect(); gain.disconnect(); };
   }
 
   // =========================================================================
-  // Ambient Generatif BGM (Pad Pentatonik Hangat, Hemat CPU)
+  // Ambient BGM (Audio File Player / Fallback Hening)
   // =========================================================================
 
   /**
-   * Memulai loop musik ambient generatif
+   * Memulai BGM dari file audio /assets/audio/bgm.mp3 jika tersedia
    */
   startBGM() {
-    if (!this.ctx || !this.isUnlocked || this.isBgmPlaying || !this.bgmEnabled) return;
+    if (!this.bgmEnabled || this.isBgmPlaying || this.isTabHidden) return;
 
     try {
-      this.stopBGM();
+      if (!this.bgmAudio && typeof Audio !== 'undefined') {
+        this.bgmAudio = new Audio('/assets/audio/bgm.mp3');
+        this.bgmAudio.loop = true;
+        this.bgmAudio.preload = 'auto';
+        this.bgmAudio.volume = Math.max(0, Math.min(1, this.bgmVolume * 0.3));
 
-      // Buat filter lowpass untuk suara pad yang lembut hangat
-      const filter = this.ctx.createBiquadFilter();
-      filter.type = 'lowpass';
-      filter.frequency.setValueAtTime(380, this.ctx.currentTime);
+        this.bgmAudio.addEventListener('error', () => {
+          // File tidak ditemukan atau error decoding: fallback hening tanpa crash
+          this.isBgmPlaying = false;
+        });
+      }
 
-      // LFO sangat lambat (0.08Hz) untuk dinamika hembusan halus
-      const lfo = this.ctx.createOscillator();
-      const lfoGain = this.ctx.createGain();
-      lfo.frequency.setValueAtTime(0.08, this.ctx.currentTime);
-      lfoGain.gain.setValueAtTime(90, this.ctx.currentTime);
-      lfo.connect(lfoGain);
-      lfoGain.connect(filter.frequency);
-
-      // Dua nada pentatonik lembut (C3 130.81Hz & G3 196.00Hz) dengan detune
-      const freqs = [130.81, 196.00];
-      const oscs = [];
-
-      freqs.forEach(freq => {
-        const osc = this.ctx.createOscillator();
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
-        osc.detune.setValueAtTime(Math.random() * 8 - 4, this.ctx.currentTime);
-        osc.connect(filter);
-        osc.start();
-        oscs.push(osc);
-      });
-
-      lfo.start();
-      filter.connect(this.bgmGain);
-
-      this.bgmOscillators = [...oscs, lfo];
-      this.isBgmPlaying = true;
-    } catch (e) {
-      console.warn('AudioManager: Gagal memulai BGM', e);
+      if (this.bgmAudio) {
+        this.bgmAudio.volume = Math.max(0, Math.min(1, this.bgmVolume * 0.3));
+        const p = this.bgmAudio.play();
+        if (p && typeof p.then === 'function') {
+          p.then(() => {
+            this.isBgmPlaying = true;
+          }).catch(() => {
+            this.isBgmPlaying = false;
+          });
+        }
+      }
+    } catch (_) {
+      this.isBgmPlaying = false;
     }
   }
 
   /**
-   * Menghentikan musik ambient BGM
+   * Menghentikan musik ambient BGM sepenuhnya (0 CPU)
    */
   stopBGM() {
-    if (!this.isBgmPlaying) return;
-
-    this.bgmOscillators.forEach(node => {
+    if (this.bgmAudio) {
       try {
-        node.stop();
-        node.disconnect();
+        this.bgmAudio.pause();
+        this.bgmAudio.currentTime = 0;
       } catch (_) {}
-    });
-
-    this.bgmOscillators = [];
+    }
     this.isBgmPlaying = false;
+  }
+
+  /**
+   * Menjeda musik ambient BGM sementara saat pause dialog terbuka
+   */
+  pauseBGM() {
+    if (this.bgmAudio && this.isBgmPlaying) {
+      try {
+        this.bgmAudio.pause();
+      } catch (_) {}
+    }
+  }
+
+  /**
+   * Melanjutkan musik ambient BGM setelah resume game
+   */
+  resumeBGM() {
+    if (this.bgmAudio && this.bgmEnabled && !this.isTabHidden) {
+      try {
+        const p = this.bgmAudio.play();
+        if (p && typeof p.then === 'function') {
+          p.then(() => {
+            this.isBgmPlaying = true;
+          }).catch(() => {});
+        }
+      } catch (_) {}
+    }
   }
 
   /**
@@ -520,5 +564,4 @@ class AudioManager {
   }
 }
 
-// Singleton instance
 export const audioManager = new AudioManager();

@@ -217,10 +217,12 @@ class ScreenNavigator {
 
     if (!this.phaserGame) {
       this.phaserGame = initGame();
-      const checkScene = setInterval(() => {
+      if (this.initGameInterval) clearInterval(this.initGameInterval);
+      this.initGameInterval = setInterval(() => {
         const scene = this.getGameScene();
         if (scene && scene.scene.isActive()) {
-          clearInterval(checkScene);
+          clearInterval(this.initGameInterval);
+          this.initGameInterval = null;
           this.gameplayUI.setGameScene(scene);
           if (boardMount && this.phaserGame.canvas && this.phaserGame.canvas.parentElement !== boardMount) {
             boardMount.appendChild(this.phaserGame.canvas);
@@ -234,8 +236,9 @@ class ScreenNavigator {
       if (boardMount && this.phaserGame.canvas && this.phaserGame.canvas.parentElement !== boardMount) {
         boardMount.appendChild(this.phaserGame.canvas);
       }
+      this.phaserGame.scene.resume('GameScene');
       const gameScene = this.getGameScene();
-      if (gameScene) {
+      if (gameScene && gameScene.scene.isActive()) {
         this.gameplayUI.setGameScene(gameScene);
         gameScene.init({ mode, dateKey });
         gameScene.restartGame();
@@ -256,10 +259,14 @@ class ScreenNavigator {
     this.settingsUI.hide();
     this.leaderboardUI.hide();
 
-    // Jika berpindah keluar dari layar game, hancurkan instance Phaser secara bersih
+    // Jika berpindah keluar dari layar game, pause scene dan lepas kanvas dari DOM (mencegah memory leak re-instansiasi)
     if (screenName !== 'game' && this.phaserGame) {
-      destroyGame();
-      this.phaserGame = null;
+      try {
+        this.phaserGame.scene.pause('GameScene');
+        if (this.phaserGame.canvas && this.phaserGame.canvas.parentElement) {
+          this.phaserGame.canvas.remove();
+        }
+      } catch (_) {}
     }
 
     if (screenName === 'menu') {
