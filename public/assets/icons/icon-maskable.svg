@@ -1,0 +1,71 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <!-- Background Penuh untuk Maskable Icon -->
+    <linearGradient id="maskableBg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f8f9ff"/>
+      <stop offset="100%" stop-color="#e5eeff"/>
+    </linearGradient>
+
+    <!-- Balok Biru (Primary) -->
+    <linearGradient id="mBlueGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#3b82f6"/>
+      <stop offset="100%" stop-color="#1d4ed8"/>
+    </linearGradient>
+
+    <!-- Balok Coral (Secondary) -->
+    <linearGradient id="mCoralGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#fb7185"/>
+      <stop offset="100%" stop-color="#e11d48"/>
+    </linearGradient>
+
+    <!-- Balok Emerald (Tertiary) -->
+    <linearGradient id="mEmeraldGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#34d399"/>
+      <stop offset="100%" stop-color="#059669"/>
+    </linearGradient>
+
+    <filter id="mDrop" x="-10%" y="-10%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#0b1c30" flood-opacity="0.18"/>
+    </filter>
+  </defs>
+
+  <!-- Background Penuh 512x512 -->
+  <rect width="512" height="512" fill="url(#maskableBg)"/>
+
+  <!-- Konten Berada di Area Aman Tengah 80% (Diameter ~380px) -->
+  <g transform="translate(256, 256) scale(0.85) translate(-256, -256)" filter="url(#mDrop)">
+    <!-- Bingkai Kartu Tengah -->
+    <rect x="76" y="76" width="360" height="360" rx="64" fill="#ffffff" stroke="#dbe1ff" stroke-width="4"/>
+
+    <!-- Balok 1: Biru Azure -->
+    <g transform="translate(140, 140)">
+      <rect x="0" y="4" width="108" height="108" rx="20" fill="#1e3a8a" opacity="0.3"/>
+      <rect x="0" y="0" width="108" height="108" rx="20" fill="url(#mBlueGrad)"/>
+      <rect x="6" y="6" width="96" height="26" rx="13" fill="#ffffff" opacity="0.38"/>
+      <rect x="0" y="0" width="108" height="108" rx="20" fill="none" stroke="#ffffff" stroke-width="2" opacity="0.5"/>
+    </g>
+
+    <!-- Balok 2: Coral Rose -->
+    <g transform="translate(264, 140)">
+      <rect x="0" y="4" width="108" height="108" rx="20" fill="#881337" opacity="0.3"/>
+      <rect x="0" y="0" width="108" height="108" rx="20" fill="url(#mCoralGrad)"/>
+      <rect x="6" y="6" width="96" height="26" rx="13" fill="#ffffff" opacity="0.38"/>
+      <rect x="0" y="0" width="108" height="108" rx="20" fill="none" stroke="#ffffff" stroke-width="2" opacity="0.5"/>
+    </g>
+
+    <!-- Balok 3: Emerald Hijau -->
+    <g transform="translate(140, 264)">
+      <rect x="0" y="4" width="108" height="108" rx="20" fill="#064e3b" opacity="0.3"/>
+      <rect x="0" y="0" width="108" height="108" rx="20" fill="url(#mEmeraldGrad)"/>
+      <rect x="6" y="6" width="96" height="26" rx="13" fill="#ffffff" opacity="0.38"/>
+      <rect x="0" y="0" width="108" height="108" rx="20" fill="none" stroke="#ffffff" stroke-width="2" opacity="0.5"/>
+    </g>
+
+    <!-- Balok Aksen Mini -->
+    <g transform="translate(264, 264)">
+      <rect x="0" y="0" width="108" height="108" rx="20" fill="#eff4ff" stroke="#d3e4fe" stroke-width="3"/>
+      <circle cx="54" cy="54" r="20" fill="#2563eb" opacity="0.9"/>
+      <circle cx="54" cy="54" r="9" fill="#ffffff"/>
+    </g>
+  </g>
+</svg>

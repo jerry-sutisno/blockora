@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="theme-color" content="#f8f9ff" />
+  <meta name="description" content="Game puzzle susun balok 10x10 taktil dan santai" />
+  
+  <!-- PWA & Apple Meta Tags -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="Blockora" />
+  <meta name="mobile-web-app-capable" content="yes" />
+
+  <!-- Icons -->
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+
+  <title>Blockora - Puzzle Game</title>
+  <link rel="stylesheet" href="/src/style.css" />
+</head>
+<body class="bg-surface text-on-surface font-body-md text-body-md min-h-screen relative selection:bg-primary-fixed selection:text-on-primary-fixed overflow-x-hidden">
+  <div id="app">
+    <!-- Screen HTML: Main Menu -->
+    <div id="screen-menu" class="screen-container active"></div>
+
+    <!-- Screen HTML: Daily Challenge -->
+    <div id="screen-daily" class="screen-container"></div>
+
+    <!-- Screen HTML: Statistics -->
+    <div id="screen-stats" class="screen-container"></div>
+
+    <!-- Screen HTML: Settings -->
+    <div id="screen-settings" class="screen-container"></div>
+
+    <!-- Screen HTML: Leaderboard -->
+    <div id="screen-leaderboard" class="screen-container"></div>
+
+    <!-- Container Phaser Game -->
+    <div id="game-container"></div>
+
+    <!-- Screen HTML: Result / Game Over -->
+    <div id="screen-result" class="screen-container"></div>
+
+    <!-- Container Modal (Pause / Dialog) -->
+    <div id="modal-container" class="screen-container"></div>
+  </div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

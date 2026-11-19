@@ -1,0 +1,192 @@
+/* ==========================================================================
+   BLOCKORA PUZZLE GAME UI - TAILWIND V3 + STITCH DESIGN SYSTEM
+   Offline First - Material Symbols Outlined + Plus Jakarta Sans
+   ========================================================================== */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* --------------------------------------------------------------------------
+   Self-Hosted Typography: Plus Jakarta Sans
+   -------------------------------------------------------------------------- */
+@font-face {
+  font-family: 'Plus Jakarta Sans';
+  src: url('/assets/fonts/plus-jakarta-sans-400.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Plus Jakarta Sans';
+  src: url('/assets/fonts/plus-jakarta-sans-500.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Plus Jakarta Sans';
+  src: url('/assets/fonts/plus-jakarta-sans-600.woff2') format('woff2');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Plus Jakarta Sans';
+  src: url('/assets/fonts/plus-jakarta-sans-700.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Plus Jakarta Sans';
+  src: url('/assets/fonts/plus-jakarta-sans-800.woff2') format('woff2');
+  font-weight: 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* --------------------------------------------------------------------------
+   Self-Hosted Icons: Material Symbols Outlined (Variable Font)
+   -------------------------------------------------------------------------- */
+@font-face {
+  font-family: 'Material Symbols Outlined';
+  font-style: normal;
+  font-weight: 100 700;
+  src: url('/assets/fonts/material-symbols-outlined.woff2') format('woff2');
+  font-display: block;
+}
+
+@layer components {
+  .material-symbols-outlined {
+    font-family: 'Material Symbols Outlined';
+    font-weight: normal;
+    font-style: normal;
+    font-size: 24px;
+    line-height: 1;
+    letter-spacing: normal;
+    text-transform: none;
+    display: inline-block;
+    white-space: nowrap;
+    word-wrap: normal;
+    direction: ltr;
+    -webkit-font-feature-settings: 'liga';
+    -webkit-font-smoothing: antialiased;
+    font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Stitch Base Layer (As-Is from Stitch screens)
+   -------------------------------------------------------------------------- */
+@layer base {
+  html, body {
+    margin: 0;
+    padding: 0;
+    font-family: 'Plus Jakarta Sans', sans-serif;
+  }
+  body {
+    overscroll-behavior: none;
+    background-color: #f8f9ff;
+    color: #0b1c30;
+  }
+  main > :first-child {
+    margin-top: 0 !important;
+  }
+  main > :last-child {
+    margin-bottom: 0 !important;
+  }
+}
+
+::-webkit-scrollbar {
+  display: none;
+}
+
+/* --------------------------------------------------------------------------
+   App Container & Screen Management
+   -------------------------------------------------------------------------- */
+#app {
+  width: 100%;
+  min-height: 100vh;
+  position: relative;
+  background-color: #f8f9ff;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+}
+
+.screen-container {
+  width: 100%;
+  min-height: 100vh;
+  display: none;
+}
+
+.screen-container.active {
+  display: block;
+}
+
+/* Modal Container Overlay */
+#modal-container {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: none;
+  pointer-events: none;
+}
+
+#modal-container.active {
+  display: flex !important;
+  pointer-events: auto;
+}
+
+/* Phaser Game Viewport Container */
+#game-container {
+  width: 100%;
+  min-height: 100vh;
+  display: none;
+  background-color: #f8f9ff;
+  overscroll-behavior: none;
+}
+
+#game-container.active {
+  display: block;
+}
+
+#game-container canvas {
+  display: block;
+  margin: 0 auto;
+  touch-action: none;
+}
+
+#blockora-board canvas {
+  width: 100% !important;
+  height: 100% !important;
+  max-width: 100%;
+  max-height: 100%;
+  display: block;
+  touch-action: none;
+  border-radius: 6px;
+  pointer-events: auto;
+}
+
+/* Accessibility & Reduced Motion */
+body.reduced-motion *,
+body.reduced-motion *::before,
+body.reduced-motion *::after {
+  animation-duration: 0.001ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  transform: none !important;
+}
+
+button:focus-visible,
+input:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid #004ac6;
+  outline-offset: 2px;
+}

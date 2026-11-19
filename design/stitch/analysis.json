@@ -1,0 +1,152 @@
+[
+  {
+    "file": "main-menu.html",
+    "png": "main-menu.png",
+    "sizeKB": "29.91",
+    "lineCount": 364,
+    "hasHtmlClose": true,
+    "imgRes": "2560x2268",
+    "containerClass": "fixed inset-0 pointer-events-none -z-10 overflow-hidden",
+    "links": [
+      "<link href=\"https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200\" rel=\"stylesheet\"/>",
+      "<link href=\"https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap\" rel=\"stylesheet\"/>",
+      "<link href=\"https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@100..900&display=swap\" rel=\"stylesheet\"/>"
+    ],
+    "scriptTags": [
+      {
+        "open": "<script src=\"https://cdn.tailwindcss.com\">",
+        "contentPreview": ""
+      },
+      {
+        "open": "<script id=\"tailwind-config\">",
+        "contentPreview": "tailwind.config={darkMode:\"class\",theme:{extend:{colors:{\"inverse-on-surface\":\"#eaf1ff\",\"tertiary-container\":\"#007d55\",\"surface-variant\":\"#d3e4fe\",\"on-tertiary-fixed\":\"#002113\",\"surface-dim\":\"#cbdbf5\",\"on-tertiary-container\":\"#bdffdb\",\"secondary-container\":\"#dc2c4f\",\"surface-container-highest\":\"#d3e"
+      }
+    ]
+  },
+  {
+    "file": "daily.html",
+    "png": "daily.png",
+    "sizeKB": "38.16",
+    "lineCount": 432,
+    "hasHtmlClose": true,
+    "imgRes": "2560x2366",
+    "containerClass": "fixed inset-0 pointer-events-none -z-10 overflow-hidden",
+    "links": [
+      "<link href=\"https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&amp;family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200\" rel=\"stylesheet\"/>",
+      "<link href=\"https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap\" rel=\"stylesheet\"/>",
+      "<link href=\"https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@100..900&amp;display=swap\" rel=\"stylesheet\"/>",
+      "<link href=\"https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap\" rel=\"stylesheet\"/>"
+    ],
+    "scriptTags": [
+      {
+        "open": "<script src=\"https://cdn.tailwindcss.com\">",
+        "contentPreview": ""
+      },
+      {
+        "open": "<script id=\"tailwind-config\">",
+        "contentPreview": "tailwind.config={darkMode:\"class\",theme:{extend:{colors:{\"on-primary-fixed-variant\":\"#003ea8\",\"surface-container\":\"#e5eeff\",\"on-tertiary\":\"#ffffff\",\"inverse-primary\":\"#b4c5ff\",\"tertiary-fixed-dim\":\"#4edea3\",\"outline-variant\":\"#c3c6d7\",\"primary-container\":\"#2563eb\",\"error\":\"#ba1a1a\",\"on-tertiary-fixe"
+      }
+    ]
+  },
+  {
+    "file": "settings.html",
+    "png": "settings.png",
+    "sizeKB": "34.02",
+    "lineCount": 462,
+    "hasHtmlClose": true,
+    "imgRes": "1536x2664",
+    "containerClass": "fixed inset-0 pointer-events-none -z-10 overflow-hidden",
+    "links": [
+      "<link href=\"https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&amp;family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200\" rel=\"stylesheet\">",
+      "<link href=\"https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap\" rel=\"stylesheet\">",
+      "<link href=\"https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@100..900&amp;display=swap\" rel=\"stylesheet\">",
+      "<link href=\"https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap\" rel=\"stylesheet\">"
+    ],
+    "scriptTags": [
+      {
+        "open": "<script src=\"https://cdn.tailwindcss.com\">",
+        "contentPreview": ""
+      },
+      {
+        "open": "<script id=\"tailwind-config\">",
+        "contentPreview": "tailwind.config={darkMode:\"class\",theme:{extend:{colors:{\"on-primary-fixed-variant\":\"#003ea8\",\"surface-container\":\"#e5eeff\",\"on-tertiary\":\"#ffffff\",\"inverse-primary\":\"#b4c5ff\",\"tertiary-fixed-dim\":\"#4edea3\",\"outline-variant\":\"#c3c6d7\",\"primary-container\":\"#2563eb\",\"error\":\"#ba1a1a\",\"on-tertiary-fixe"
+      }
+    ]
+  },
+  {
+    "file": "statistics.html",
+    "png": "statistics.png",
+    "sizeKB": "36.16",
+    "lineCount": 481,
+    "hasHtmlClose": true,
+    "imgRes": "2560x3180",
+    "containerClass": "fixed inset-0 pointer-events-none -z-10 overflow-hidden",
+    "links": [
+      "<link href=\"https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&amp;family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200\" rel=\"stylesheet\"/>",
+      "<link href=\"https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap\" rel=\"stylesheet\"/>",
+      "<link href=\"https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@100..900&amp;display=swap\" rel=\"stylesheet\"/>",
+      "<link href=\"https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap\" rel=\"stylesheet\"/>"
+    ],
+    "scriptTags": [
+      {
+        "open": "<script src=\"https://cdn.tailwindcss.com\">",
+        "contentPreview": ""
+      },
+      {
+        "open": "<script id=\"tailwind-config\">",
+        "contentPreview": "tailwind.config={darkMode:\"class\",theme:{extend:{colors:{\"inverse-on-surface\":\"#eaf1ff\",\"tertiary-container\":\"#007d55\",\"surface-variant\":\"#d3e4fe\",\"on-tertiary-fixed\":\"#002113\",\"surface-dim\":\"#cbdbf5\",\"on-tertiary-container\":\"#bdffdb\",\"secondary-container\":\"#dc2c4f\",\"surface-container-highest\":\"#d3e"
+      }
+    ]
+  },
+  {
+    "file": "gameplay.html",
+    "png": "gameplay.png",
+    "sizeKB": "34.87",
+    "lineCount": 382,
+    "hasHtmlClose": true,
+    "imgRes": "2560x2048",
+    "containerClass": "fixed inset-0 pointer-events-none -z-10 overflow-hidden",
+    "links": [
+      "<link href=\"https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&amp;family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200\" rel=\"stylesheet\"/>",
+      "<link href=\"https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap\" rel=\"stylesheet\"/>",
+      "<link href=\"https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@100..900&amp;display=swap\" rel=\"stylesheet\"/>",
+      "<link href=\"https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap\" rel=\"stylesheet\"/>"
+    ],
+    "scriptTags": [
+      {
+        "open": "<script src=\"https://cdn.tailwindcss.com\">",
+        "contentPreview": ""
+      },
+      {
+        "open": "<script id=\"tailwind-config\">",
+        "contentPreview": "tailwind.config={darkMode:\"class\",theme:{extend:{colors:{\"inverse-on-surface\":\"#eaf1ff\",\"tertiary-container\":\"#007d55\",\"surface-variant\":\"#d3e4fe\",\"on-tertiary-fixed\":\"#002113\",\"surface-dim\":\"#cbdbf5\",\"on-tertiary-container\":\"#bdffdb\",\"secondary-container\":\"#dc2c4f\",\"surface-container-highest\":\"#d3e"
+      }
+    ]
+  },
+  {
+    "file": "result.html",
+    "png": "result.png",
+    "sizeKB": "23.88",
+    "lineCount": 266,
+    "hasHtmlClose": true,
+    "imgRes": "2560x2256",
+    "containerClass": "fixed inset-0 pointer-events-none -z-10 overflow-hidden",
+    "links": [
+      "<link href=\"https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&amp;family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200\" rel=\"stylesheet\"/>",
+      "<link href=\"https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap\" rel=\"stylesheet\"/>",
+      "<link href=\"https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@100..900&amp;display=swap\" rel=\"stylesheet\"/>",
+      "<link href=\"https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap\" rel=\"stylesheet\"/>",
+      "<link href=\"https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap\" rel=\"stylesheet\"/>"
+    ],
+    "scriptTags": [
+      {
+        "open": "<script src=\"https://cdn.tailwindcss.com\">",
+        "contentPreview": ""
+      },
+      {
+        "open": "<script id=\"tailwind-config\">",
+        "contentPreview": "tailwind.config={darkMode:\"class\",theme:{extend:{colors:{\"inverse-on-surface\":\"#eaf1ff\",\"tertiary-container\":\"#007d55\",\"surface-variant\":\"#d3e4fe\",\"on-tertiary-fixed\":\"#002113\",\"surface-dim\":\"#cbdbf5\",\"on-tertiary-container\":\"#bdffdb\",\"secondary-container\":\"#dc2c4f\",\"surface-container-highest\":\"#d3e"
+      }
+    ]
+  }
+]

@@ -1,0 +1,256 @@
+/**
+ * DragSystem - Pengelola interaksi Drag and Drop balok menggunakan pointer Phaser.
+ * Mendukung Mouse dan Touch (layar sentuh HP) dengan perhitungan snap ke grid 10x10.
+ */
+export class DragSystem {
+  /**
+   * @param {Phaser.Scene} scene Instance GameScene
+   * @param {object} config Parameter posisi dan ukuran grid papan
+   */
+  constructor(scene, config) {
+    this.scene = scene;
+    this.boardSystem = config.boardSystem;
+    this.blockSystem = config.blockSystem;
+    this.boardOriginX = config.boardOriginX;
+    this.boardOriginY = config.boardOriginY;
+    this.cellSize = config.cellSize;
+    this.cellGap = config.cellGap;
+    this.onBlockPlaced = config.onBlockPlaced;
+    this.onDragStateChange = config.onDragStateChange;
+
+    // State drag aktif
+    this.isDragging = false;
+    this.activePointerId = null;
+    this.draggedBlock = null;
+    this.draggedContainer = null;
+    this.originSlotIndex = null;
+    this.originX = 0;
+    this.originY = 0;
+    this.originScale = 1;
+
+    // State preview snap
+    this.currentSnapRow = null;
+    this.currentSnapCol = null;
+    this.isValidPlacement = false;
+
+    // Offset vertikal saat touch (agar balok tidak tertutup jari)
+    // Sekitar 1.8x tinggi sel papan
+    this.touchOffsetY = this.cellSize * 1.8;
+  }
+
+  /**
+   * Memperbarui konfigurasi papan jika terjadi penyesuaian tata letak
+   */
+  updateBoardConfig(config) {
+    this.boardOriginX = config.boardOriginX;
+    this.boardOriginY = config.boardOriginY;
+    this.cellSize = config.cellSize;
+    this.cellGap = config.cellGap;
+    this.touchOffsetY = this.cellSize * 1.8;
+  }
+
+  /**
+   * Memulai proses drag pada balok tertentu dari slot tray
+   * @param {Phaser.Input.Pointer} pointer Pointer yang memicu drag
+   * @param {number} slotIndex Indeks slot di tray (0..2)
+   * @param {object} blockData Objek data balok dari BlockSystem
+   * @param {Phaser.GameObjects.Container} container Wadah visual balok
+   */
+  startDrag(pointer, slotIndex, blockData, container) {
+    // Tolak multi-touch kedua saat sudah ada balok yang sedang di-drag
+    if (this.isDragging) return;
+
+    this.isDragging = true;
+    this.activePointerId = pointer.id;
+    this.draggedBlock = blockData;
+    this.draggedContainer = container;
+    this.originSlotIndex = slotIndex;
+    this.originX = container.x;
+    this.originY = container.y;
+    this.originScale = container.scaleX;
+
+    // Bawa kontainer ke lapisan paling atas
+    container.setDepth(100);
+
+    // Hitung posisi awal drag
+    const isTouch = pointer.wasTouch;
+    const targetY = pointer.y - (isTouch ? this.touchOffsetY : 0);
+
+    // Animasi membesar ke ukuran sel papan asli (scale = 1.0)
+    this.scene.tweens.add({
+      targets: container,
+      x: pointer.x,
+      y: targetY,
+      scaleX: 1.0,
+      scaleY: 1.0,
+      duration: 100,
+      ease: 'Back.easeOut'
+    });
+
+    if (this.onDragStateChange) {
+      this.onDragStateChange({ type: 'start', slotIndex, blockData });
+    }
+  }
+
+  /**
+   * Menangani perpindahan pointer saat drag berlangsung
+   * @param {Phaser.Input.Pointer} pointer 
+   */
+  onPointerMove(pointer) {
+    if (!this.isDragging || pointer.id !== this.activePointerId) return;
+
+    const isTouch = pointer.wasTouch;
+    const targetY = pointer.y - (isTouch ? this.touchOffsetY : 0);
+
+    this.draggedContainer.x = pointer.x;
+    this.draggedContainer.y = targetY;
+
+    // Hitung snap grid papan
+    this.calculateGridSnap();
+  }
+
+  /**
+   * Menghitung posisi baris & kolom target di papan berdasarkan posisi balok yang di-drag
+   */
+  calculateGridSnap() {
+    if (!this.draggedContainer || !this.draggedBlock) return;
+
+    const step = this.cellSize + this.cellGap;
+    const shapeOffsetX = this.draggedContainer.shapeOffsetX || 0;
+    const shapeOffsetY = this.draggedContainer.shapeOffsetY || 0;
+
+    // Koordinat relatif titik awal [0, 0] balok terhadap sudut kiri-atas papan
+    const relX = (this.draggedContainer.x + shapeOffsetX) - this.boardOriginX;
+    const relY = (this.draggedContainer.y + shapeOffsetY) - this.boardOriginY;
+
+    // Snap ke sel terdekat
+    const targetCol = Math.round(relX / step);
+    const targetRow = Math.round(relY / step);
+
+    this.currentSnapRow = targetRow;
+    this.currentSnapCol = targetCol;
+
+    // Periksa apakah penempatan valid menggunakan BoardSystem
+    this.isValidPlacement = this.boardSystem.canPlace(
+      this.draggedBlock.coords,
+      targetRow,
+      targetCol
+    );
+
+    // Periksa apakah setidaknya salah satu sel berada di dalam batas papan
+    const hasAnyCellOnBoard = this.draggedBlock.coords.some(([r, c]) => {
+      const tr = targetRow + r;
+      const tc = targetCol + c;
+      return tr >= 0 && tr < this.boardSystem.size && tc >= 0 && tc < this.boardSystem.size;
+    });
+
+    if (this.onDragStateChange) {
+      this.onDragStateChange({
+        type: 'move',
+        row: targetRow,
+        col: targetCol,
+        isValid: this.isValidPlacement,
+        hasCellsOnBoard: hasAnyCellOnBoard,
+        block: this.draggedBlock
+      });
+    }
+  }
+
+  /**
+   * Menangani pelepasan pointer (drop)
+   * @param {Phaser.Input.Pointer} pointer 
+   */
+  onPointerUp(pointer) {
+    if (!this.isDragging) return;
+    if (this.activePointerId !== null && pointer.id !== this.activePointerId) return;
+
+    if (this.isValidPlacement && this.currentSnapRow !== null && this.currentSnapCol !== null) {
+      // Penempatan VALID: Taruh di papan
+      const row = this.currentSnapRow;
+      const col = this.currentSnapCol;
+      const block = this.draggedBlock;
+      const slotIndex = this.originSlotIndex;
+
+      const success = this.boardSystem.place(block.coords, row, col, block.color.id);
+
+      if (success) {
+        this.blockSystem.markUsed(slotIndex);
+
+        if (this.onBlockPlaced) {
+          this.onBlockPlaced({
+            block,
+            slotIndex,
+            row,
+            col,
+            container: this.draggedContainer
+          });
+        }
+
+        // Hancurkan kontainer drag lama karena sel sudah digambar di papan
+        this.draggedContainer.destroy();
+        this.resetDragState();
+        return;
+      }
+    }
+
+    // Penempatan TIDAK VALID: Balikkan balok ke slot tray dengan animasi tween halus
+    this.revertToTray();
+  }
+
+  /**
+   * Mengembalikan balok yang gagal diletakkan kembali ke slot tray asalnya
+   */
+  revertToTray() {
+    if (!this.draggedContainer) {
+      this.resetDragState();
+      return;
+    }
+
+    const container = this.draggedContainer;
+    container.setDepth(10);
+
+    this.scene.tweens.add({
+      targets: container,
+      x: this.originX,
+      y: this.originY,
+      scaleX: this.originScale,
+      scaleY: this.originScale,
+      duration: 180,
+      ease: 'Cubic.easeOut',
+      onComplete: () => {
+        this.resetDragState();
+      }
+    });
+
+    if (this.onDragStateChange) {
+      this.onDragStateChange({ type: 'revert' });
+    }
+  }
+
+  /**
+   * Membatalkan proses drag saat ini (mis. window blur atau pointercancel)
+   */
+  cancelDrag() {
+    if (this.isDragging) {
+      this.revertToTray();
+    }
+  }
+
+  /**
+   * Mereset seluruh variabel status drag
+   */
+  resetDragState() {
+    this.isDragging = false;
+    this.activePointerId = null;
+    this.draggedBlock = null;
+    this.draggedContainer = null;
+    this.originSlotIndex = null;
+    this.currentSnapRow = null;
+    this.currentSnapCol = null;
+    this.isValidPlacement = false;
+
+    if (this.onDragStateChange) {
+      this.onDragStateChange({ type: 'end' });
+    }
+  }
+}
