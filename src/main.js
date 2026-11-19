@@ -211,34 +211,46 @@ class ScreenNavigator {
 
     this.resultUI.hide();
     this.modal.hide();
-    this.showScreen('game');
 
-    const boardMount = document.getElementById('blockora-board');
+    // 1. Tampilkan antarmuka HTML Gameplay terlebih dahulu
+    if (audioManager.bgmEnabled) audioManager.startBGM();
+    this.currentScreen = 'game';
+    this.menuUI.hide();
+    this.dailyUI.hide();
+    this.statsUI.hide();
+    this.settingsUI.hide();
+    this.leaderboardUI.hide();
+    this.gameElement.classList.add('active');
+    this.gameplayUI.show(this.gameElement, { mode: this.activeMode, dateKey: this.activeDateKey });
 
+    // 2. Pasang dan jalankan engine Phaser
     if (!this.phaserGame) {
       this.phaserGame = initGame();
-      if (this.initGameInterval) clearInterval(this.initGameInterval);
-      this.initGameInterval = setInterval(() => {
+      const mountWhenReady = () => {
         const scene = this.getGameScene();
-        if (scene && scene.scene.isActive()) {
-          clearInterval(this.initGameInterval);
-          this.initGameInterval = null;
+        if (scene) {
           this.gameplayUI.setGameScene(scene);
-          if (boardMount && this.phaserGame.canvas && this.phaserGame.canvas.parentElement !== boardMount) {
-            boardMount.appendChild(this.phaserGame.canvas);
-          }
           scene.init({ mode, dateKey });
           scene.restartGame();
           scene.syncGameplayUI();
+          return true;
         }
-      }, 50);
-    } else {
-      if (boardMount && this.phaserGame.canvas && this.phaserGame.canvas.parentElement !== boardMount) {
-        boardMount.appendChild(this.phaserGame.canvas);
+        return false;
+      };
+
+      if (!mountWhenReady()) {
+        if (this.initGameInterval) clearInterval(this.initGameInterval);
+        this.initGameInterval = setInterval(() => {
+          if (mountWhenReady()) {
+            clearInterval(this.initGameInterval);
+            this.initGameInterval = null;
+          }
+        }, 30);
       }
+    } else {
       this.phaserGame.scene.resume('GameScene');
       const gameScene = this.getGameScene();
-      if (gameScene && gameScene.scene.isActive()) {
+      if (gameScene) {
         this.gameplayUI.setGameScene(gameScene);
         gameScene.init({ mode, dateKey });
         gameScene.restartGame();
@@ -300,20 +312,18 @@ class ScreenNavigator {
       this.gameplayUI.hide();
       this.resultUI.show(this.resultElement);
     } else if (screenName === 'game') {
+      if (!this.phaserGame) {
+        this.startFreshGame(this.activeMode, this.activeDateKey);
+        return;
+      }
       if (audioManager.bgmEnabled) audioManager.startBGM();
       this.gameElement.classList.add('active');
       this.gameplayUI.show(this.gameElement, { mode: this.activeMode, dateKey: this.activeDateKey });
-      const boardMount = document.getElementById('blockora-board');
-      if (boardMount && this.phaserGame?.canvas && this.phaserGame.canvas.parentElement !== boardMount) {
-        boardMount.appendChild(this.phaserGame.canvas);
-      }
-      if (this.phaserGame) {
-        this.phaserGame.scene.resume('GameScene');
-        const scene = this.getGameScene();
-        if (scene) {
-          this.gameplayUI.setGameScene(scene);
-          scene.syncGameplayUI();
-        }
+      this.phaserGame.scene.resume('GameScene');
+      const scene = this.getGameScene();
+      if (scene) {
+        this.gameplayUI.setGameScene(scene);
+        scene.syncGameplayUI();
       }
     }
   }

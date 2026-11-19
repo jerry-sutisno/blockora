@@ -611,19 +611,23 @@ export class GameplayUI {
 
   attachGameScene(scene) {
     this.gameScene = scene;
-    const boardMount = this.container?.querySelector('#blockora-board');
+    const boardMount = this.container?.querySelector('#blockora-board') || document.getElementById('blockora-board');
     if (!boardMount) return;
 
     if (scene.game && scene.game.canvas) {
       scene.game.canvas.style.display = 'block';
       scene.game.canvas.style.width = '100%';
       scene.game.canvas.style.height = '100%';
+      scene.game.canvas.style.maxWidth = '100%';
+      scene.game.canvas.style.maxHeight = '100%';
+      scene.game.canvas.style.margin = '0 auto';
       scene.game.canvas.style.borderRadius = '0.375rem';
       scene.game.canvas.style.touchAction = 'none';
       scene.game.canvas.style.pointerEvents = 'auto';
 
-      boardMount.innerHTML = '';
-      boardMount.appendChild(scene.game.canvas);
+      if (scene.game.canvas.parentElement !== boardMount) {
+        boardMount.appendChild(scene.game.canvas);
+      }
     }
   }
 
@@ -797,10 +801,10 @@ export class GameplayUI {
   }
 
   handleDragUp(e, slotIdx, block) {
-    this.cleanDragListeners();
-
     let placed = false;
-    const rect = this.cachedBoardRect;
+    const boardMount = this.container?.querySelector('#blockora-board') || document.getElementById('blockora-board');
+    const rect = this.cachedBoardRect || boardMount?.getBoundingClientRect();
+
     if (rect && this.gameScene) {
       const isTouch = e.pointerType === 'touch';
       const offsetY = isTouch ? 48 : 24;
@@ -836,11 +840,7 @@ export class GameplayUI {
       }
     }
 
-    if (this.dragGhostEl) {
-      this.dragGhostEl.remove();
-      this.dragGhostEl = null;
-    }
-    this.cachedBoardRect = null;
+    this.cleanDragListeners();
   }
 
   cleanDragListeners() {
