@@ -184,6 +184,27 @@ body.reduced-motion *::after {
   transform: none !important;
 }
 
+/* --------------------------------------------------------------------------
+   Drag Performance Optimization: Pause animations & prevent layout thrashing
+   -------------------------------------------------------------------------- */
+body.is-dragging-block * {
+  user-select: none !important;
+  -webkit-user-select: none !important;
+}
+
+body.is-dragging-block .animate-pulse,
+body.is-dragging-block .animate-bounce {
+  animation-play-state: paused !important;
+}
+
+#blockora-floating-drag {
+  pointer-events: none !important;
+  touch-action: none !important;
+  will-change: transform;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
 button:focus-visible,
 input:focus-visible,
 [tabindex]:focus-visible {

@@ -96,10 +96,14 @@ export default class GameScene extends Phaser.Scene {
     this.createCellTextures();
     this.setupBoard(width, height);
 
-    // 4. Inisialisasi Lapisan Grafik Preview Ghost
+    // 4. Inisialisasi Pool Sprite Preview Ghost (Maksimal 9 sel untuk polyomino 3x3)
     this.previewGraphics = this.add.graphics();
     this.previewGraphics.setDepth(5);
     this.previewSprites = [];
+    for (let i = 0; i < 9; i++) {
+      const s = this.add.image(0, 0, 'preview_valid').setOrigin(0, 0).setDepth(5).setVisible(false);
+      this.previewSprites.push(s);
+    }
 
     // 5. Inisialisasi DragSystem (hanya untuk mode standalone/lebar > 500)
     if (width > 500) {
@@ -1355,28 +1359,43 @@ export default class GameScene extends Phaser.Scene {
     const step = this.cellSize + this.cellGap;
     const tex = canPlace ? 'preview_valid' : 'preview_invalid';
 
-    // Inisialisasi pool sprite jika belum ada
     if (!this.previewSprites) this.previewSprites = [];
     while (this.previewSprites.length < block.coords.length) {
-      const s = this.add.image(0, 0, tex).setOrigin(0, 0).setDepth(5);
+      const s = this.add.image(0, 0, tex).setOrigin(0, 0).setDepth(5).setVisible(false);
       this.previewSprites.push(s);
     }
 
     let spriteIdx = 0;
-    block.coords.forEach(([r, c]) => {
-      const targetRow = row + r;
-      const targetCol = col + c;
+    const coords = block.coords;
+    const len = coords.length;
+    const boardOriginX = this.boardOriginX;
+    const boardOriginY = this.boardOriginY;
 
-      if (this.boardSystem.isValidCell(targetRow, targetCol)) {
+    for (let i = 0; i < len; i++) {
+      const targetRow = row + coords[i][0];
+      const targetCol = col + coords[i][1];
+
+      if (targetRow >= 0 && targetRow < BOARD_SIZE && targetCol >= 0 && targetCol < BOARD_SIZE) {
         const sprite = this.previewSprites[spriteIdx++];
-        sprite.setTexture(tex);
-        sprite.setPosition(this.boardOriginX + (targetCol * step), this.boardOriginY + (targetRow * step));
-        sprite.setVisible(true);
+        if (sprite.texture.key !== tex) {
+          sprite.setTexture(tex);
+        }
+        const posX = boardOriginX + (targetCol * step);
+        const posY = boardOriginY + (targetRow * step);
+        if (sprite.x !== posX || sprite.y !== posY) {
+          sprite.setPosition(posX, posY);
+        }
+        if (!sprite.visible) {
+          sprite.setVisible(true);
+        }
       }
-    });
+    }
 
-    for (let i = spriteIdx; i < this.previewSprites.length; i++) {
-      this.previewSprites[i].setVisible(false);
+    const totalSprites = this.previewSprites.length;
+    for (let i = spriteIdx; i < totalSprites; i++) {
+      if (this.previewSprites[i].visible) {
+        this.previewSprites[i].setVisible(false);
+      }
     }
   }
 
@@ -1389,7 +1408,12 @@ export default class GameScene extends Phaser.Scene {
     this._lastHoverBlock = null;
 
     if (this.previewSprites) {
-      this.previewSprites.forEach(s => s.setVisible(false));
+      const len = this.previewSprites.length;
+      for (let i = 0; i < len; i++) {
+        if (this.previewSprites[i].visible) {
+          this.previewSprites[i].setVisible(false);
+        }
+      }
     }
     if (this.previewGraphics) {
       this.previewGraphics.clear();

@@ -69,6 +69,29 @@ export class GameplayUI {
     this.onMoveHandler = null;
     this.onUpHandler = null;
     this.gameScene = null;
+
+    // State optimasi drag 60 FPS
+    this.isDraggingActive = false;
+    this.activeDragBlock = null;
+    this.activeDragSlot = null;
+    this.dragHalfCols = 0;
+    this.dragHalfRows = 0;
+    this.lastHoverRow = null;
+    this.lastHoverCol = null;
+
+    this.boardLeft = 0;
+    this.boardTop = 0;
+    this.boardWidth = 0;
+    this.boardHeight = 0;
+    this.cachedCellStep = 0;
+
+    this.latestPointerX = 0;
+    this.latestPointerY = 0;
+    this.latestPointerIsTouch = false;
+
+    this.onDragFrame = this.handleDragFrameTick.bind(this);
+    this._onPointerMoveBound = this.handleDragMove.bind(this);
+    this._onPointerUpBound = this.handleDragUp.bind(this);
   }
 
   /**
@@ -714,118 +737,142 @@ export class GameplayUI {
 
     e.preventDefault();
     this.activeDragSlot = slotIdx;
+    this.activeDragBlock = block;
+    this.isDraggingActive = true;
+    document.body.classList.add('is-dragging-block');
+
+    // Pre-kalkulasi geometri balok sekali saja tanpa map/spread/closure
+    const coords = block.coords || block.shape || [[0, 0]];
+    let minR = Infinity, maxR = -Infinity, minC = Infinity, maxC = -Infinity;
+    for (let i = 0; i < coords.length; i++) {
+      const r = coords[i][0];
+      const c = coords[i][1];
+      if (r < minR) minR = r;
+      if (r > maxR) maxR = r;
+      if (c < minC) minC = c;
+      if (c > maxC) maxC = c;
+    }
+    this.dragHalfCols = Math.floor((maxC - minC + 1) / 2);
+    this.dragHalfRows = Math.floor((maxR - minR + 1) / 2);
+    this.lastHoverRow = null;
+    this.lastHoverCol = null;
 
     // Cache posisi & dimensi papan sekali saja saat mulai drag (mencegah layout thrashing)
-    const boardMount = this.container?.querySelector('#blockora-board');
+    const boardMount = this.container?.querySelector('#blockora-board') || document.getElementById('blockora-board');
     if (boardMount) {
-      this.cachedBoardRect = boardMount.getBoundingClientRect();
-      this.cachedCellStep = this.cachedBoardRect.width / 10;
+      const bRect = boardMount.getBoundingClientRect();
+      this.boardLeft = bRect.left;
+      this.boardTop = bRect.top;
+      this.boardWidth = bRect.width;
+      this.boardHeight = bRect.height;
+      this.cachedCellStep = bRect.width / 10;
     }
 
-    // Buat floating ghost element yang dianimasikan murni via CSS transform GPU
-    const colorClass = getColorBgClass(block.color?.id);
-    const coords = block.coords || block.shape || [[0, 0]];
-    const preview = renderShapePreview(coords, colorClass);
-
     const isTouch = e.pointerType === 'touch';
+    this.latestPointerIsTouch = isTouch;
+    this.latestPointerX = e.clientX;
+    this.latestPointerY = e.clientY;
     const offsetY = isTouch ? 48 : 24;
 
-    const ghost = document.createElement('div');
-    ghost.id = 'blockora-floating-drag';
-    ghost.style.position = 'fixed';
-    ghost.style.left = '0px';
-    ghost.style.top = '0px';
-    ghost.style.transform = `translate3d(${e.clientX - 24}px, ${e.clientY - offsetY}px, 0) scale(1.15)`;
-    ghost.style.pointerEvents = 'none';
-    ghost.style.zIndex = '9999';
-    ghost.style.willChange = 'transform';
-    ghost.innerHTML = preview;
+    // Pakai ulang (reuse) floating ghost element tanpa alokasi DOM baru
+    if (!this.dragGhostEl) {
+      const ghost = document.createElement('div');
+      ghost.id = 'blockora-floating-drag';
+      ghost.style.position = 'fixed';
+      ghost.style.left = '0px';
+      ghost.style.top = '0px';
+      ghost.style.pointerEvents = 'none';
+      ghost.style.zIndex = '9999';
+      ghost.style.willChange = 'transform';
+      document.body.appendChild(ghost);
+      this.dragGhostEl = ghost;
+    }
 
-    document.body.appendChild(ghost);
-    this.dragGhostEl = ghost;
+    const colorClass = getColorBgClass(block.color?.id);
+    const preview = renderShapePreview(coords, colorClass);
+    this.dragGhostEl.innerHTML = preview;
+    this.dragGhostEl.style.display = 'block';
+    this.dragGhostEl.style.transform = `translate3d(${e.clientX - 24}px, ${e.clientY - offsetY}px, 0) scale(1.15)`;
 
     audioManager.playPickup();
 
-    this.onMoveHandler = (moveEvent) => this.handleDragMove(moveEvent, block);
-    this.onUpHandler = (upEvent) => this.handleDragUp(upEvent, slotIdx, block);
-
-    window.addEventListener('pointermove', this.onMoveHandler, { passive: true });
-    window.addEventListener('pointerup', this.onUpHandler);
-    window.addEventListener('pointercancel', this.onUpHandler);
+    window.addEventListener('pointermove', this._onPointerMoveBound, { passive: true });
+    window.addEventListener('pointerup', this._onPointerUpBound);
+    window.addEventListener('pointercancel', this._onPointerUpBound);
   }
 
-  handleDragMove(e, block) {
-    if (!this.dragGhostEl) return;
-    const clientX = e.clientX;
-    const clientY = e.clientY;
-    const isTouch = e.pointerType === 'touch';
-    const offsetY = isTouch ? 48 : 24;
+  handleDragMove(e) {
+    if (!this.isDraggingActive) return;
+    this.latestPointerX = e.clientX;
+    this.latestPointerY = e.clientY;
+    this.latestPointerIsTouch = e.pointerType === 'touch';
 
     // Throttle rendering pointer ke frame browser via requestAnimationFrame
-    if (this.dragRafId) return;
+    if (!this.dragRafId) {
+      this.dragRafId = requestAnimationFrame(this.onDragFrame);
+    }
+  }
 
-    this.dragRafId = requestAnimationFrame(() => {
-      this.dragRafId = null;
-      if (!this.dragGhostEl) return;
+  handleDragFrameTick() {
+    this.dragRafId = null;
+    if (!this.isDraggingActive || !this.dragGhostEl) return;
 
-      // Update posisi menggunakan translate3d GPU
-      this.dragGhostEl.style.transform = `translate3d(${clientX - 24}px, ${clientY - offsetY}px, 0) scale(1.15)`;
+    const clientX = this.latestPointerX;
+    const clientY = this.latestPointerY;
+    const offsetY = this.latestPointerIsTouch ? 48 : 24;
 
-      // Cek apakah kursor berada di atas papan Phaser menggunakan koordinat yang di-cache
-      const rect = this.cachedBoardRect;
-      if (rect && this.gameScene) {
-        const x = clientX - rect.left;
-        const y = clientY - offsetY - rect.top;
+    // 1. Geser ghost langsung tanpa lerp/tween
+    this.dragGhostEl.style.transform = `translate3d(${clientX - 24}px, ${clientY - offsetY}px, 0) scale(1.15)`;
 
-        if (x >= 0 && x <= rect.width && y >= 0 && y <= rect.height) {
-          const coords = block.coords || [[0, 0]];
-          const maxR = Math.max(...coords.map(([r]) => r));
-          const minR = Math.min(...coords.map(([r]) => r));
-          const maxC = Math.max(...coords.map(([, c]) => c));
-          const minC = Math.min(...coords.map(([, c]) => c));
-          const spanCols = maxC - minC + 1;
-          const spanRows = maxR - minR + 1;
+    // 2. Cek apakah kursor berada di atas papan Phaser menggunakan koordinat yang di-cache
+    if (this.gameScene && this.boardWidth > 0 && this.activeDragBlock) {
+      const x = clientX - this.boardLeft;
+      const y = clientY - offsetY - this.boardTop;
 
-          const cellStep = this.cachedCellStep || (rect.width / 10);
-          const cursorCol = Math.floor(x / cellStep);
-          const cursorRow = Math.floor(y / cellStep);
-          const col = cursorCol - Math.floor(spanCols / 2);
-          const row = cursorRow - Math.floor(spanRows / 2);
+      if (x >= 0 && x <= this.boardWidth && y >= 0 && y <= this.boardHeight) {
+        const cursorCol = (x / this.cachedCellStep) | 0;
+        const cursorRow = (y / this.cachedCellStep) | 0;
+        const col = cursorCol - this.dragHalfCols;
+        const row = cursorRow - this.dragHalfRows;
 
-          this.gameScene.setHoverPreview(block, row, col);
-        } else {
+        // Optimasi A: Hanya jalankan setHoverPreview jika sel target BERUBAH
+        if (row !== this.lastHoverRow || col !== this.lastHoverCol) {
+          this.lastHoverRow = row;
+          this.lastHoverCol = col;
+          this.gameScene.setHoverPreview(this.activeDragBlock, row, col);
+        }
+      } else {
+        if (this.lastHoverRow !== null || this.lastHoverCol !== null) {
+          this.lastHoverRow = null;
+          this.lastHoverCol = null;
           this.gameScene.clearHoverPreview();
         }
       }
-    });
+    }
   }
 
-  handleDragUp(e, slotIdx, block) {
+  handleDragUp(e) {
+    if (!this.isDraggingActive) return;
+    this.isDraggingActive = false;
+
     let placed = false;
-    const boardMount = this.container?.querySelector('#blockora-board') || document.getElementById('blockora-board');
-    const rect = this.cachedBoardRect || boardMount?.getBoundingClientRect();
+    const block = this.activeDragBlock;
+    const slotIdx = this.activeDragSlot;
 
-    if (rect && this.gameScene) {
-      const isTouch = e.pointerType === 'touch';
+    if (this.gameScene && this.boardWidth > 0 && block) {
+      const isTouch = e ? (e.pointerType === 'touch') : this.latestPointerIsTouch;
       const offsetY = isTouch ? 48 : 24;
+      const clientX = e ? e.clientX : this.latestPointerX;
+      const clientY = e ? e.clientY : this.latestPointerY;
 
-      const x = e.clientX - rect.left;
-      const y = e.clientY - offsetY - rect.top;
+      const x = clientX - this.boardLeft;
+      const y = clientY - offsetY - this.boardTop;
 
-      if (x >= 0 && x <= rect.width && y >= 0 && y <= rect.height) {
-        const coords = block.coords || [[0, 0]];
-        const maxR = Math.max(...coords.map(([r]) => r));
-        const minR = Math.min(...coords.map(([r]) => r));
-        const maxC = Math.max(...coords.map(([, c]) => c));
-        const minC = Math.min(...coords.map(([, c]) => c));
-        const spanCols = maxC - minC + 1;
-        const spanRows = maxR - minR + 1;
-
-        const cellStep = this.cachedCellStep || (rect.width / 10);
-        const cursorCol = Math.floor(x / cellStep);
-        const cursorRow = Math.floor(y / cellStep);
-        const col = cursorCol - Math.floor(spanCols / 2);
-        const row = cursorRow - Math.floor(spanRows / 2);
+      if (x >= 0 && x <= this.boardWidth && y >= 0 && y <= this.boardHeight) {
+        const cursorCol = (x / this.cachedCellStep) | 0;
+        const cursorRow = (y / this.cachedCellStep) | 0;
+        const col = cursorCol - this.dragHalfCols;
+        const row = cursorRow - this.dragHalfRows;
 
         if (this.gameScene.tryPlaceBlockFromUI(slotIdx, block, row, col)) {
           placed = true;
@@ -848,27 +895,29 @@ export class GameplayUI {
       cancelAnimationFrame(this.dragRafId);
       this.dragRafId = null;
     }
-    if (this.onMoveHandler) {
-      window.removeEventListener('pointermove', this.onMoveHandler);
-      this.onMoveHandler = null;
-    }
-    if (this.onUpHandler) {
-      window.removeEventListener('pointerup', this.onUpHandler);
-      window.removeEventListener('pointercancel', this.onUpHandler);
-      this.onUpHandler = null;
-    }
+    window.removeEventListener('pointermove', this._onPointerMoveBound);
+    window.removeEventListener('pointerup', this._onPointerUpBound);
+    window.removeEventListener('pointercancel', this._onPointerUpBound);
+
     if (this.dragGhostEl) {
-      this.dragGhostEl.remove();
-      this.dragGhostEl = null;
+      this.dragGhostEl.style.display = 'none';
     }
     if (this.gameScene) {
       this.gameScene.clearHoverPreview();
     }
-    this.cachedBoardRect = null;
+    this.isDraggingActive = false;
+    this.activeDragBlock = null;
+    this.activeDragSlot = null;
+    this.lastHoverRow = null;
+    this.lastHoverCol = null;
+    document.body.classList.remove('is-dragging-block');
   }
 
   // Update dinamis dari GameScene (Selective DOM Writes)
   updateLiveState({ score, combo, emptyCells, timerStr }) {
+    // Tunda update DOM jika sedang menggeser balok untuk mencegah frame drop
+    if (this.isDraggingActive) return;
+
     const isDesktop = typeof window !== 'undefined' && window.innerWidth >= 1024;
 
     if (score !== undefined && score !== this._lastScore) {

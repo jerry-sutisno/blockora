@@ -36,6 +36,16 @@ export class DragSystem {
     // Offset vertikal saat touch (agar balok tidak tertutup jari)
     // Sekitar 1.8x tinggi sel papan
     this.touchOffsetY = this.cellSize * 1.8;
+
+    // Objek event reusable untuk mencegah alokasi GC di jalur drag
+    this._moveStateEvent = {
+      type: 'move',
+      row: null,
+      col: null,
+      isValid: false,
+      hasCellsOnBoard: false,
+      block: null
+    };
   }
 
   /**
@@ -76,15 +86,17 @@ export class DragSystem {
     const isTouch = pointer.wasTouch;
     const targetY = pointer.y - (isTouch ? this.touchOffsetY : 0);
 
-    // Animasi membesar ke ukuran sel papan asli (scale = 1.0)
+    // Langsung posisikan kontainer ke pointer tanpa lag tween posisi
+    container.x = pointer.x;
+    container.y = targetY;
+
+    // Animasi membesar ke ukuran sel papan asli hanya pada scale (tanpa tween x/y)
     this.scene.tweens.add({
       targets: container,
-      x: pointer.x,
-      y: targetY,
       scaleX: 1.0,
       scaleY: 1.0,
-      duration: 100,
-      ease: 'Back.easeOut'
+      duration: 80,
+      ease: 'Cubic.easeOut'
     });
 
     if (this.onDragStateChange) {
@@ -127,6 +139,11 @@ export class DragSystem {
     const targetCol = Math.round(relX / step);
     const targetRow = Math.round(relY / step);
 
+    // Optimasi A: Hanya jalankan canPlace dan update ghost saat sel target BERUBAH
+    if (targetRow === this.currentSnapRow && targetCol === this.currentSnapCol) {
+      return;
+    }
+
     this.currentSnapRow = targetRow;
     this.currentSnapCol = targetCol;
 
@@ -137,22 +154,27 @@ export class DragSystem {
       targetCol
     );
 
-    // Periksa apakah setidaknya salah satu sel berada di dalam batas papan
-    const hasAnyCellOnBoard = this.draggedBlock.coords.some(([r, c]) => {
-      const tr = targetRow + r;
-      const tc = targetCol + c;
-      return tr >= 0 && tr < this.boardSystem.size && tc >= 0 && tc < this.boardSystem.size;
-    });
+    // Periksa apakah setidaknya salah satu sel berada di dalam batas papan tanpa closure/spread
+    let hasAnyCellOnBoard = false;
+    const coords = this.draggedBlock.coords;
+    const boardSize = this.boardSystem.size;
+    for (let i = 0; i < coords.length; i++) {
+      const tr = targetRow + coords[i][0];
+      const tc = targetCol + coords[i][1];
+      if (tr >= 0 && tr < boardSize && tc >= 0 && tc < boardSize) {
+        hasAnyCellOnBoard = true;
+        break;
+      }
+    }
 
     if (this.onDragStateChange) {
-      this.onDragStateChange({
-        type: 'move',
-        row: targetRow,
-        col: targetCol,
-        isValid: this.isValidPlacement,
-        hasCellsOnBoard: hasAnyCellOnBoard,
-        block: this.draggedBlock
-      });
+      const ev = this._moveStateEvent;
+      ev.row = targetRow;
+      ev.col = targetCol;
+      ev.isValid = this.isValidPlacement;
+      ev.hasCellsOnBoard = hasAnyCellOnBoard;
+      ev.block = this.draggedBlock;
+      this.onDragStateChange(ev);
     }
   }
 
