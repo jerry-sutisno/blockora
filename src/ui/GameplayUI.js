@@ -13,6 +13,7 @@ import { audioManager } from '../audio/AudioManager.js';
 import { HapticManager } from '../utils/HapticManager.js';
 import { TACTILE_TIPS, BLOCK_COLORS, SHAPES } from '../game/constants.js';
 import { bindHeaderNav } from './HeaderNav.js';
+import { getShapeBounds, computeBlockRect, computeTargetCell } from '../game/systems/DragGeometry.js';
 
 function getShapeName(shapeId) {
   if (!shapeId) return 'Block';
@@ -741,19 +742,8 @@ export class GameplayUI {
     this.isDraggingActive = true;
     document.body.classList.add('is-dragging-block');
 
-    // Pre-kalkulasi geometri balok sekali saja tanpa map/spread/closure
     const coords = block.coords || block.shape || [[0, 0]];
-    let minR = Infinity, maxR = -Infinity, minC = Infinity, maxC = -Infinity;
-    for (let i = 0; i < coords.length; i++) {
-      const r = coords[i][0];
-      const c = coords[i][1];
-      if (r < minR) minR = r;
-      if (r > maxR) maxR = r;
-      if (c < minC) minC = c;
-      if (c > maxC) maxC = c;
-    }
-    this.dragHalfCols = Math.floor((maxC - minC + 1) / 2);
-    this.dragHalfRows = Math.floor((maxR - minR + 1) / 2);
+    this.dragShapeBounds = getShapeBounds(coords);
     this.lastHoverRow = null;
     this.lastHoverCol = null;
 
@@ -765,14 +755,21 @@ export class GameplayUI {
       this.boardTop = bRect.top;
       this.boardWidth = bRect.width;
       this.boardHeight = bRect.height;
-      this.cachedCellStep = bRect.width / 10;
+      // Resolusi internal kanvas papan Phaser adalah 444 x 444 (10 sel x 39px + 9 gap x 6px)
+      const scale = bRect.width > 0 ? (bRect.width / 444) : 1;
+      this.dragDomCellSize = 39 * scale;
+      this.dragDomCellGap = 6 * scale;
+      this.dragDomCellStep = 45 * scale;
+    } else {
+      this.dragDomCellSize = 39;
+      this.dragDomCellGap = 6;
+      this.dragDomCellStep = 45;
     }
 
     const isTouch = e.pointerType === 'touch';
     this.latestPointerIsTouch = isTouch;
     this.latestPointerX = e.clientX;
     this.latestPointerY = e.clientY;
-    const offsetY = isTouch ? 48 : 24;
 
     // Pakai ulang (reuse) floating ghost element tanpa alokasi DOM baru
     if (!this.dragGhostEl) {
@@ -789,10 +786,24 @@ export class GameplayUI {
     }
 
     const colorClass = getColorBgClass(block.color?.id);
-    const preview = renderShapePreview(coords, colorClass);
-    this.dragGhostEl.innerHTML = preview;
+    this.dragGhostEl.innerHTML = renderFullDragGhost(
+      coords,
+      colorClass,
+      this.dragShapeBounds,
+      this.dragDomCellSize,
+      this.dragDomCellGap
+    );
     this.dragGhostEl.style.display = 'block';
-    this.dragGhostEl.style.transform = `translate3d(${e.clientX - 24}px, ${e.clientY - offsetY}px, 0) scale(1.15)`;
+
+    const blockRect = computeBlockRect(
+      e.clientX,
+      e.clientY,
+      this.dragShapeBounds,
+      this.dragDomCellSize,
+      this.dragDomCellGap,
+      isTouch
+    );
+    this.dragGhostEl.style.transform = `translate3d(${blockRect.left.toFixed(1)}px, ${blockRect.top.toFixed(1)}px, 0)`;
 
     audioManager.playPickup();
 
@@ -817,25 +828,35 @@ export class GameplayUI {
     this.dragRafId = null;
     if (!this.isDraggingActive || !this.dragGhostEl) return;
 
-    const clientX = this.latestPointerX;
-    const clientY = this.latestPointerY;
-    const offsetY = this.latestPointerIsTouch ? 48 : 24;
+    const blockRect = computeBlockRect(
+      this.latestPointerX,
+      this.latestPointerY,
+      this.dragShapeBounds,
+      this.dragDomCellSize,
+      this.dragDomCellGap,
+      this.latestPointerIsTouch
+    );
 
-    // 1. Geser ghost langsung tanpa lerp/tween
-    this.dragGhostEl.style.transform = `translate3d(${clientX - 24}px, ${clientY - offsetY}px, 0) scale(1.15)`;
+    // 1. Geser elemen floating ghost di DOM persis ke posisi visualnya
+    this.dragGhostEl.style.transform = `translate3d(${blockRect.left.toFixed(1)}px, ${blockRect.top.toFixed(1)}px, 0)`;
 
-    // 2. Cek apakah kursor berada di atas papan Phaser menggunakan koordinat yang di-cache
+    // 2. Hitung sel target snap di papan dari SATU SUMBER KEBENARAN yang sama:
     if (this.gameScene && this.boardWidth > 0 && this.activeDragBlock) {
-      const x = clientX - this.boardLeft;
-      const y = clientY - offsetY - this.boardTop;
+      const board = { left: this.boardLeft, top: this.boardTop };
+      const target = computeTargetCell(blockRect, board, this.dragDomCellStep, this.dragShapeBounds);
+      const row = target.row;
+      const col = target.col;
 
-      if (x >= 0 && x <= this.boardWidth && y >= 0 && y <= this.boardHeight) {
-        const cursorCol = (x / this.cachedCellStep) | 0;
-        const cursorRow = (y / this.cachedCellStep) | 0;
-        const col = cursorCol - this.dragHalfCols;
-        const row = cursorRow - this.dragHalfRows;
+      // Toleransi snap: selama balok berada di dekat atau di atas papan
+      const boardPad = this.dragDomCellStep * 1.5;
+      const isNearBoard = (
+        blockRect.left + blockRect.width >= this.boardLeft - boardPad &&
+        blockRect.left <= this.boardLeft + this.boardWidth + boardPad &&
+        blockRect.top + blockRect.height >= this.boardTop - boardPad &&
+        blockRect.top <= this.boardTop + this.boardHeight + boardPad
+      );
 
-        // Optimasi A: Hanya jalankan setHoverPreview jika sel target BERUBAH
+      if (isNearBoard) {
         if (row !== this.lastHoverRow || col !== this.lastHoverCol) {
           this.lastHoverRow = row;
           this.lastHoverCol = col;
@@ -847,6 +868,10 @@ export class GameplayUI {
           this.lastHoverCol = null;
           this.gameScene.clearHoverPreview();
         }
+      }
+
+      if (isDebugEnabled()) {
+        this.updateDebugOverlay(this.latestPointerX, this.latestPointerY, blockRect, target);
       }
     }
   }
@@ -861,22 +886,24 @@ export class GameplayUI {
 
     if (this.gameScene && this.boardWidth > 0 && block) {
       const isTouch = e ? (e.pointerType === 'touch') : this.latestPointerIsTouch;
-      const offsetY = isTouch ? 48 : 24;
       const clientX = e ? e.clientX : this.latestPointerX;
       const clientY = e ? e.clientY : this.latestPointerY;
 
-      const x = clientX - this.boardLeft;
-      const y = clientY - offsetY - this.boardTop;
+      const blockRect = computeBlockRect(
+        clientX,
+        clientY,
+        this.dragShapeBounds,
+        this.dragDomCellSize,
+        this.dragDomCellGap,
+        isTouch
+      );
+      const board = { left: this.boardLeft, top: this.boardTop };
+      const target = computeTargetCell(blockRect, board, this.dragDomCellStep, this.dragShapeBounds);
+      const row = target.row;
+      const col = target.col;
 
-      if (x >= 0 && x <= this.boardWidth && y >= 0 && y <= this.boardHeight) {
-        const cursorCol = (x / this.cachedCellStep) | 0;
-        const cursorRow = (y / this.cachedCellStep) | 0;
-        const col = cursorCol - this.dragHalfCols;
-        const row = cursorRow - this.dragHalfRows;
-
-        if (this.gameScene.tryPlaceBlockFromUI(slotIdx, block, row, col)) {
-          placed = true;
-        }
+      if (this.gameScene.tryPlaceBlockFromUI(slotIdx, block, row, col)) {
+        placed = true;
       }
       this.gameScene.clearHoverPreview();
     }
@@ -902,6 +929,9 @@ export class GameplayUI {
     if (this.dragGhostEl) {
       this.dragGhostEl.style.display = 'none';
     }
+    if (this.debugOverlayEl) {
+      this.debugOverlayEl.style.display = 'none';
+    }
     if (this.gameScene) {
       this.gameScene.clearHoverPreview();
     }
@@ -911,6 +941,34 @@ export class GameplayUI {
     this.lastHoverRow = null;
     this.lastHoverCol = null;
     document.body.classList.remove('is-dragging-block');
+  }
+
+  updateDebugOverlay(pointerX, pointerY, blockRect, target) {
+    if (!this.debugOverlayEl) {
+      const el = document.createElement('div');
+      el.id = 'blockora-drag-debug';
+      el.style.position = 'fixed';
+      el.style.inset = '0';
+      el.style.pointerEvents = 'none';
+      el.style.zIndex = '10000';
+      document.body.appendChild(el);
+      this.debugOverlayEl = el;
+    }
+
+    const snapLeft = this.boardLeft + (target.boxCol * this.dragDomCellStep);
+    const snapTop = this.boardTop + (target.boxRow * this.dragDomCellStep);
+    const diffX = blockRect.left - snapLeft;
+    const diffY = blockRect.top - snapTop;
+
+    this.debugOverlayEl.style.display = 'block';
+    this.debugOverlayEl.innerHTML = `
+      <div style="position:fixed; left:${pointerX - 4}px; top:${pointerY - 4}px; width:8px; height:8px; background:#ef4444; border-radius:50%; z-index:10001; box-shadow:0 0 4px #ef4444;"></div>
+      <div style="position:fixed; left:${blockRect.left}px; top:${blockRect.top}px; width:${blockRect.width}px; height:${blockRect.height}px; border:2px dashed #3b82f6; z-index:10001; box-sizing:border-box;"></div>
+      <div style="position:fixed; left:${snapLeft}px; top:${snapTop}px; width:${blockRect.width}px; height:${blockRect.height}px; border:2px solid #22c55e; z-index:10001; box-sizing:border-box;"></div>
+      <div style="position:fixed; top:12px; left:50%; transform:translateX(-50%); background:rgba(15,23,42,0.9); color:#fff; font-family:monospace; font-size:11px; padding:6px 12px; border-radius:8px; z-index:10002; white-space:nowrap; border:1px solid rgba(255,255,255,0.2);">
+        DEBUG: row=${target.row} col=${target.col} | diff=(${diffX.toFixed(1)}px, ${diffY.toFixed(1)}px)
+      </div>
+    `;
   }
 
   // Update dinamis dari GameScene (Selective DOM Writes)
@@ -1004,4 +1062,40 @@ function renderShapePreview(shapeCoords, colorClass) {
       </div>
     </div>
   `;
+}
+
+function renderFullDragGhost(shapeCoords, colorClass, shapeBounds, cellSize, cellGap) {
+  const cols = shapeBounds.cols;
+  const rows = shapeBounds.rows;
+  const cells = [];
+  const roundedRadius = Math.max(3, Math.round(5 * (cellSize / 39)));
+
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const shapeRow = r + shapeBounds.minR;
+      const shapeCol = c + shapeBounds.minC;
+      const isFilled = shapeCoords.some(([sr, sc]) => sr === shapeRow && sc === shapeCol);
+      if (isFilled) {
+        cells.push(
+          `<div class="${colorClass} shadow-[0_3px_8px_rgba(0,0,0,0.25),inset_0_1.5px_2px_rgba(255,255,255,0.7)]"` +
+          ` style="width:${cellSize.toFixed(1)}px; height:${cellSize.toFixed(1)}px; border-radius:${roundedRadius}px;"></div>`
+        );
+      } else {
+        cells.push(
+          `<div style="width:${cellSize.toFixed(1)}px; height:${cellSize.toFixed(1)}px; opacity:0; pointer-events:none;"></div>`
+        );
+      }
+    }
+  }
+
+  return `
+    <div style="display:grid; grid-template-columns: repeat(${cols}, ${cellSize.toFixed(1)}px); gap:${cellGap.toFixed(1)}px; width:max-content; height:max-content; pointer-events:none;">
+      ${cells.join('')}
+    </div>
+  `;
+}
+
+function isDebugEnabled() {
+  if (typeof window === 'undefined') return false;
+  return new URLSearchParams(window.location.search).get('debug') === '1' || window.__BLOCKORA_DEBUG__ === true;
 }

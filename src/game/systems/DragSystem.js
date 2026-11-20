@@ -1,3 +1,5 @@
+import { getShapeBounds, computeBlockRect, computeTargetCell } from './DragGeometry.js';
+
 /**
  * DragSystem - Pengelola interaksi Drag and Drop balok menggunakan pointer Phaser.
  * Mendukung Mouse dan Touch (layar sentuh HP) dengan perhitungan snap ke grid 10x10.
@@ -82,13 +84,21 @@ export class DragSystem {
     // Bawa kontainer ke lapisan paling atas
     container.setDepth(100);
 
-    // Hitung posisi awal drag
+    // Hitung posisi awal drag menggunakan DragGeometry
     const isTouch = pointer.wasTouch;
-    const targetY = pointer.y - (isTouch ? this.touchOffsetY : 0);
+    this.currentShapeBounds = getShapeBounds(blockData.coords);
+    const blockRect = computeBlockRect(
+      pointer.x,
+      pointer.y,
+      this.currentShapeBounds,
+      this.cellSize,
+      this.cellGap,
+      isTouch
+    );
 
-    // Langsung posisikan kontainer ke pointer tanpa lag tween posisi
-    container.x = pointer.x;
-    container.y = targetY;
+    // Langsung posisikan kontainer ke posisi anchor yang tepat
+    container.x = blockRect.left;
+    container.y = blockRect.top;
 
     // Animasi membesar ke ukuran sel papan asli hanya pada scale (tanpa tween x/y)
     this.scene.tweens.add({
@@ -112,10 +122,17 @@ export class DragSystem {
     if (!this.isDragging || pointer.id !== this.activePointerId) return;
 
     const isTouch = pointer.wasTouch;
-    const targetY = pointer.y - (isTouch ? this.touchOffsetY : 0);
+    const blockRect = computeBlockRect(
+      pointer.x,
+      pointer.y,
+      this.currentShapeBounds,
+      this.cellSize,
+      this.cellGap,
+      isTouch
+    );
 
-    this.draggedContainer.x = pointer.x;
-    this.draggedContainer.y = targetY;
+    this.draggedContainer.x = blockRect.left;
+    this.draggedContainer.y = blockRect.top;
 
     // Hitung snap grid papan
     this.calculateGridSnap();
@@ -128,16 +145,16 @@ export class DragSystem {
     if (!this.draggedContainer || !this.draggedBlock) return;
 
     const step = this.cellSize + this.cellGap;
-    const shapeOffsetX = this.draggedContainer.shapeOffsetX || 0;
-    const shapeOffsetY = this.draggedContainer.shapeOffsetY || 0;
+    const board = { left: this.boardOriginX, top: this.boardOriginY };
+    const target = computeTargetCell(
+      { left: this.draggedContainer.x, top: this.draggedContainer.y },
+      board,
+      step,
+      this.currentShapeBounds
+    );
 
-    // Koordinat relatif titik awal [0, 0] balok terhadap sudut kiri-atas papan
-    const relX = (this.draggedContainer.x + shapeOffsetX) - this.boardOriginX;
-    const relY = (this.draggedContainer.y + shapeOffsetY) - this.boardOriginY;
-
-    // Snap ke sel terdekat
-    const targetCol = Math.round(relX / step);
-    const targetRow = Math.round(relY / step);
+    const targetRow = target.row;
+    const targetCol = target.col;
 
     // Optimasi A: Hanya jalankan canPlace dan update ghost saat sel target BERUBAH
     if (targetRow === this.currentSnapRow && targetCol === this.currentSnapCol) {
