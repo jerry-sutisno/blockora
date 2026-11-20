@@ -372,22 +372,42 @@ export default class GameScene extends Phaser.Scene {
       this.boardCellViews = [];
       const step = this.cellSize + this.cellGap;
 
-      // Optimasi: Seluruh 100 sel kosong digambar dalam SATU Graphics object (1 draw call)
+      // Optimasi Render Phaser: Pre-render 100 sel kosong ke SATU texture statis (1 Image quad)
+      // Menghilangkan 11.014 perintah vertex tessellation dari loop render CPU setiap frame
       if (this.emptyGridGraphics) {
         this.emptyGridGraphics.destroy();
+        this.emptyGridGraphics = null;
       }
-      this.emptyGridGraphics = this.add.graphics();
-      this.emptyGridGraphics.fillStyle(THEME_COLORS.cellEmpty, 1);
-      this.emptyGridGraphics.lineStyle(1, THEME_COLORS.cellEmptyStroke, 0.7);
+      if (this.boardBgImage) {
+        this.boardBgImage.destroy();
+        this.boardBgImage = null;
+      }
+
+      const texKey = 'board_empty_grid_stitch';
+      if (!this.textures.exists(texKey)) {
+        const tempG = this.make.graphics({ x: 0, y: 0, add: false });
+        tempG.fillStyle(THEME_COLORS.cellEmpty, 1);
+        tempG.lineStyle(1, THEME_COLORS.cellEmptyStroke, 0.7);
+
+        for (let r = 0; r < BOARD_SIZE; r++) {
+          for (let c = 0; c < BOARD_SIZE; c++) {
+            const cellX = this.boardOriginX + (c * step);
+            const cellY = this.boardOriginY + (r * step);
+            tempG.fillRoundedRect(cellX, cellY, this.cellSize, this.cellSize, this.cellRadius);
+            tempG.strokeRoundedRect(cellX, cellY, this.cellSize, this.cellSize, this.cellRadius);
+          }
+        }
+        tempG.generateTexture(texKey, 444, 444);
+        tempG.destroy();
+      }
+
+      this.boardBgImage = this.add.image(0, 0, texKey).setOrigin(0, 0).setDepth(0);
 
       for (let r = 0; r < BOARD_SIZE; r++) {
         this.boardCellViews[r] = [];
         for (let c = 0; c < BOARD_SIZE; c++) {
           const cellX = this.boardOriginX + (c * step);
           const cellY = this.boardOriginY + (r * step);
-
-          this.emptyGridGraphics.fillRoundedRect(cellX, cellY, this.cellSize, this.cellSize, this.cellRadius);
-          this.emptyGridGraphics.strokeRoundedRect(cellX, cellY, this.cellSize, this.cellSize, this.cellRadius);
 
           this.boardCellViews[r][c] = {
             x: cellX,

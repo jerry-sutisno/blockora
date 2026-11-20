@@ -172,6 +172,8 @@
   touch-action: none;
   border-radius: 6px;
   pointer-events: auto;
+  will-change: transform;
+  transform: translateZ(0);
 }
 
 /* Accessibility & Reduced Motion */
